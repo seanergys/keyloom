@@ -1,0 +1,17 @@
+# ------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.cache/
+build/
+dist/
+*.egg-info/
+
+# ProperDocs output for GitLab Pages; the build itself goes to build/site.
+public/

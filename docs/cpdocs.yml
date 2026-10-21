@@ -1,0 +1,43 @@
+# ------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+
+contract: 3
+
+# keyloom is a plain pyproject.toml package; cpdocs' own Python provider
+# plays the build system.
+build:
+  feature-sets: >
+    "{{python}}" -m cpdocs manifest python feature-sets
+    --source "{{source}}" --output "{{output-file}}"
+  build: >
+    "{{python}}" -m cpdocs manifest python build
+    --source "{{source}}" --feature-set "{{feature-set}}"
+    --output "{{output-file}}"
+    --package keyloom --package-source src/keyloom
+
+checks:
+  broken-references: fail
+  undocumented: fail
+
+versions: [main]
+
+site:
+  copyright: Copyright © SEANERGYS Partners · Apache-2.0
+  # The keyloom colours and icon, as in the project documentation: the teal
+  # of the icon tile and the wordmark, and the amber of its threads. On the
+  # dark scheme the accent is a lighter teal, so links stay readable, with
+  # dark text on it.
+  theme:
+    logo: share/keyloom/brandkit/generated/icon/svg/keyloom-icon-color-on-transparent-none.svg
+    colors:
+      light:
+        accent: "#266c7c"
+        accent-2: "#eba333"
+        selected: "#e6f0f2"
+      dark:
+        accent: "#65a9ba"
+        accent-2: "#eba333"
+        on-accent: "#0d1f24"
+        selected: "#1d3940"

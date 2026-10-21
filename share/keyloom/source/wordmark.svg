@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu> -->
+
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg
+   viewBox="0 0 4000 1000"
+   width="4000"
+   height="1000"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="keyloom-wordmark.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.42414754"
+     inkscape:cx="2371.8162"
+     inkscape:cy="430.27481"
+     inkscape:window-width="3840"
+     inkscape:window-height="2080"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <title
+     id="title1">keyloom</title>
+  <text
+     x="-65.8937"
+     y="767.29559"
+     font-family="Outfit, sans-serif"
+     font-weight="600"
+     font-size="1000px"
+     fill="#266C7C"
+     id="text1"
+     style="font-weight:600;font-size:999.636px;font-family:Outfit, sans-serif;fill:#266C7C;stroke-width:0.999636"
+     transform="scale(1.0020766,0.99792771)"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:999.636px;font-family:'ADLaM Display';-inkscape-font-specification:'ADLaM Display, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.999636"
+       id="tspan1">keyloom</tspan></text>
+  <metadata
+     id="metadata1">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>keyloom</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

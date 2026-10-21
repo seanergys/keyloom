@@ -1,0 +1,208 @@
+# ------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+
+stages:
+  - legal
+  - check
+  - test
+  - security
+  - build
+  - deploy
+
+include:
+  # Licence and copyright information of every file, checked before any other
+  # work. Creates the job primary.reuse.
+  - component: $CI_SERVER_FQDN/software/catalog/reuse@main
+    inputs:
+      stage: legal
+  # GitLab's scanners that run in Premium. Dependency scanning, DAST, API and
+  # coverage-guided fuzzing need Ultimate, and container scanning needs an
+  # image, which this project does not build.
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/SAST-IaC.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+variables:
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  UV_LINK_MODE: copy
+
+.uv:
+  before_script:
+    - uv sync --locked
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.cache/uv]
+
+# ------------------------------------------------------------------------------
+# Check
+# ------------------------------------------------------------------------------
+
+ruff:
+  extends: .uv
+  stage: check
+  script:
+    - uv run ruff check
+    - uv run ruff format --check
+
+# ------------------------------------------------------------------------------
+# Test
+# ------------------------------------------------------------------------------
+
+unit-test:
+  extends: .uv
+  stage: test
+  script:
+    - uv run pytest -q --ignore=tests/test_fuzz.py
+
+fuzz-test:
+  extends: .uv
+  stage: test
+  variables:
+    KEYLOOM_FUZZ_CASES: "100"
+  script:
+    - export KEYLOOM_FUZZ_SEED="${KEYLOOM_FUZZ_SEED:-$CI_PIPELINE_ID}"
+    - echo "fuzz seed=$KEYLOOM_FUZZ_SEED cases=$KEYLOOM_FUZZ_CASES"
+    - uv run pytest -q tests/test_fuzz.py
+
+# ------------------------------------------------------------------------------
+# Security
+# ------------------------------------------------------------------------------
+
+# The templates put their jobs in the test stage; move them here. Every
+# analyzer job extends one of these base jobs.
+sast:
+  stage: security
+
+iac-sast:
+  stage: security
+
+# A scanner that crashes fails the pipeline instead of passing silently, and
+# its report is kept as a plain artifact for security-gate.
+semgrep-sast:
+  allow_failure: false
+  rules:
+    - when: on_success
+  artifacts:
+    paths: [gl-sast-report.json]
+
+kics-iac-sast:
+  allow_failure: false
+  rules:
+    - when: on_success
+  # IaC and code SAST both use gl-sast-report.json. Keep distinct report
+  # artifact names to prevent one scanner from overwriting the other when
+  # security-gate downloads the jobs' artifacts.
+  after_script:
+    - if test -f gl-sast-report.json; then mv gl-sast-report.json gl-iac-sast-report.json; fi
+  artifacts:
+    when: always
+    paths: [gl-iac-sast-report.json]
+    reports:
+      sast: gl-iac-sast-report.json
+
+secret_detection:
+  stage: security
+  allow_failure: false
+  rules:
+    - when: on_success
+  artifacts:
+    paths: [gl-secret-detection-report.json]
+
+# Without Ultimate, findings appear only in the report artifacts and never
+# fail a pipeline; .gitlab/scripts/security_gate.py turns them into a failing
+# job and lists every finding.
+security-gate:
+  stage: security
+  needs:
+    - job: semgrep-sast
+      artifacts: true
+    - job: secret_detection
+      artifacts: true
+    - job: kics-iac-sast
+      artifacts: true
+  # Every pipeline, including tags, requires all three scanner reports.
+  script:
+    - python3 .gitlab/scripts/security_gate.py
+
+# GitLab's dependency scanning needs Ultimate. pip-audit checks the locked
+# runtime dependencies against the PyPI advisory database instead.
+pip-audit:
+  extends: .uv
+  stage: security
+  script:
+    - uv export --frozen --no-default-groups --no-emit-project
+      --format requirements-txt --output-file requirements.txt
+    - uv run pip-audit --strict --disable-pip --require-hashes
+      -r requirements.txt
+
+# ------------------------------------------------------------------------------
+# Build
+# ------------------------------------------------------------------------------
+
+build-package:
+  stage: build
+  script:
+    - uv build
+  artifacts:
+    paths: [dist/]
+
+build-docs:
+  extends: .uv
+  stage: build
+  # cpdocs builds the API of every version in docs/cpdocs.yml from Git, so the
+  # job needs git, the full history and the branches. It documents the version
+  # named "main" from this checkout instead of origin/main: an MR pipeline
+  # then checks the API documentation of the code under review, and only the
+  # pipeline on main publishes it.
+  variables:
+    GIT_DEPTH: 0
+    CPDOCS_CURRENT_BRANCH: main
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - git fetch --tags origin '+refs/heads/*:refs/remotes/origin/*'
+    - uv sync --locked --group docs
+  script:
+    - uv run properdocs build --strict
+    - mv build/site public
+  artifacts:
+    paths: [public/]
+
+# ------------------------------------------------------------------------------
+# Deploy
+# ------------------------------------------------------------------------------
+
+publish-package:
+  stage: deploy
+  needs:
+    - job: build-package
+      artifacts: true
+    - job: security-gate
+      artifacts: false
+  variables:
+    UV_PUBLISH_URL: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi"
+    UV_PUBLISH_USERNAME: gitlab-ci-token
+  script:
+    - UV_PUBLISH_PASSWORD="$CI_JOB_TOKEN" uv publish dist/*
+  rules:
+    - if: $CI_COMMIT_TAG
+
+deploy-pages:
+  stage: deploy
+  pages: true
+  needs:
+    - job: build-docs
+      artifacts: true
+  script:
+    - echo "Deploying keyloom documentation to GitLab Pages"
+  artifacts:
+    paths: [public/]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

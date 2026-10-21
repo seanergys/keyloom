@@ -1,0 +1,174 @@
+{
+  "generator": "brandgen",
+  "version": "2.0.0",
+  "name": "keyloom",
+  "sources": {
+    "icon.svg": "799e014dcf354e0edb102b58a808a4512e8c532a448c1a1f6472c108b2bc9039",
+    "wordmark.svg": "edcdf4488f4d39f795e237340120fbfd190f55fa6c7c667cb09a6e3f7f5e1e1d",
+    "ADLaMDisplay-Regular.ttf": "0342699ea282ae4b4bbb4f9feec7dccacd780e384b3faabe179ee3e6cc09af27"
+  },
+  "lockup": {
+    "mark": "logo-horizontal",
+    "arrangement": "horizontal",
+    "body": 0.478569,
+    "gap": 0.1875
+  },
+  "paddings": {
+    "none": {
+      "ratio": 0.0,
+      "description": "the source page, no clear space added"
+    }
+  },
+  "warnings": [
+    "wordmark.svg: outlined 1 live text element(s)"
+  ],
+  "files": [
+    {
+      "path": "icon/pdf/keyloom-icon-color-on-transparent-none.pdf",
+      "mark": "icon",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "pdf",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1600.0,
+        "height": 1600.0
+      },
+      "bytes": 2182,
+      "sha256": "8aa8362ad69d9447b9ee24e2d5fa82fd398d513e4b00b75af364707ad2e7af3b"
+    },
+    {
+      "path": "icon/png/keyloom-icon-color-on-transparent-none-2048px.png",
+      "mark": "icon",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "png",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1600.0,
+        "height": 1600.0
+      },
+      "bytes": 71821,
+      "sha256": "e0009a2fd30fe82776216068d00283b6b62ef4839fe0ed7f7e91e1bed7dbefa0",
+      "width_px": 2048
+    },
+    {
+      "path": "icon/svg/keyloom-icon-color-on-transparent-none.svg",
+      "mark": "icon",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "svg",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1600.0,
+        "height": 1600.0
+      },
+      "bytes": 2360,
+      "sha256": "87141ea099f099d783ee2a9d6af3cc88c3780df5ca67b13a3506a11ebac85843"
+    },
+    {
+      "path": "logo-horizontal/pdf/keyloom-logo-horizontal-color-on-transparent-none.pdf",
+      "mark": "logo-horizontal",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "pdf",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 5900.008818397548,
+        "height": 1600.0
+      },
+      "bytes": 6054,
+      "sha256": "b82d1ea68d1b80b774e4d3e71f98b017be44e8bf2e488ac60cb0bea8e7d43522"
+    },
+    {
+      "path": "logo-horizontal/png/keyloom-logo-horizontal-color-on-transparent-none-2048px.png",
+      "mark": "logo-horizontal",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "png",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 5900.008818397548,
+        "height": 1600.0
+      },
+      "bytes": 58523,
+      "sha256": "32571a32f355a9dee0743e03b499d1be96d71464c332f42699add664d9f57683",
+      "width_px": 2048
+    },
+    {
+      "path": "logo-horizontal/svg/keyloom-logo-horizontal-color-on-transparent-none.svg",
+      "mark": "logo-horizontal",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "svg",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 5900.008818397548,
+        "height": 1600.0
+      },
+      "bytes": 12122,
+      "sha256": "e1fb76be667ed7f79023e4335c68b8599865a5214c98a748518c149f4ef103ff"
+    },
+    {
+      "path": "wordmark/pdf/keyloom-wordmark-color-on-transparent-none.pdf",
+      "mark": "wordmark",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "pdf",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 4000.0,
+        "height": 1000.0
+      },
+      "bytes": 4986,
+      "sha256": "c233983e12c5b7996d332078fc8f87eeeb2b39a8fd6922dcb18ff62d15ef3084"
+    },
+    {
+      "path": "wordmark/png/keyloom-wordmark-color-on-transparent-none-2048px.png",
+      "mark": "wordmark",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "png",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 4000.0,
+        "height": 1000.0
+      },
+      "bytes": 56879,
+      "sha256": "9ce94e85e77714e03a54362333d1bfd0c16d39a5578eb1bd5349cb0be00015ca",
+      "width_px": 2048
+    },
+    {
+      "path": "wordmark/svg/keyloom-wordmark-color-on-transparent-none.svg",
+      "mark": "wordmark",
+      "colorway": "color",
+      "background": "transparent",
+      "padding": "none",
+      "format": "svg",
+      "canvas": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 4000.0,
+        "height": 1000.0
+      },
+      "bytes": 9643,
+      "sha256": "a126081303d367bfc9cc2ad2724389b02c7a059e05ea6b74d447ca02975b6a45"
+    }
+  ]
+}

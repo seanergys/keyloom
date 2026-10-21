@@ -1,0 +1,48 @@
+/* -----------------------------------------------------------------------------
+ * SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+ * SPDX-License-Identifier: Apache-2.0
+ * ---------------------------------------------------------------------------*/
+
+/* The keyloom colours: the teal of the icon tile and the wordmark, and the
+ * amber of its threads. The theme uses them through primary: custom and
+ * accent: custom in properdocs.yml. */
+:root > * {
+  --md-primary-fg-color: #266c7c;
+  --md-primary-fg-color--light: #408494;
+  --md-primary-fg-color--dark: #035565;
+  --md-primary-fg-color--transparent: #266c7c1a;
+  /* The amber of the threads is too light for text on white; hovered links
+   * use a darker amber of the same hue. */
+  --md-accent-fg-color: #9f6200;
+  --md-accent-fg-color--transparent: #9f62001a;
+}
+
+/* On the dark background, links and the current page in the navigation need
+ * a lighter teal, and the amber of the threads is readable as it is. */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #65a9ba;
+  --md-primary-fg-color--transparent: #65a9ba1f;
+  --md-typeset-a-color: #65a9ba;
+  --md-accent-fg-color: #eba333;
+  --md-accent-fg-color--transparent: #eba3331a;
+}
+
+/* The logo stands in for the title of the landing page, centred above it. */
+.md-typeset h1.keyloom-title {
+  margin-bottom: 1.5em;
+}
+
+.md-typeset h1.keyloom-title img {
+  display: block;
+  width: 24rem;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* The theme separates code blocks from the surrounding text by the same 1em as
+ * paragraphs, which leaves them tight against the prose. Code blocks that open
+ * a content tab keep the theme's zero margin through its more specific rule. */
+.md-typeset pre {
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}

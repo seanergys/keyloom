@@ -1,0 +1,82 @@
+# ------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "keyloom"
+description = "Field-level encryption for configuration files"
+readme = "readme.md"
+requires-python = ">=3.11"
+license = "Apache-2.0 AND OFL-1.1"
+license-files = ["LICENSES/*"]
+dynamic = ["version"]
+dependencies = [
+  "cryptography>=44",
+  "korml==0.1.0",
+  "tomlkit>=0.13",
+]
+
+[[project.authors]]
+name = "Jayesh Badwaik"
+
+[project.urls]
+Issues = "https://github.com/seanergys/keyloom/issues"
+
+[project.scripts]
+keyloom = "keyloom._cli:main"
+
+# ------------------------------------------------------------------------------
+# Build
+# ------------------------------------------------------------------------------
+
+# The version is defined once, in src/keyloom/_metadata.py.
+[tool.hatch.version]
+path = "src/keyloom/_metadata.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/keyloom"]
+
+# Everything under the top-level share/ directory is installed to
+# <prefix>/share, so other tools can find it outside the package.
+[tool.hatch.build.targets.wheel.shared-data]
+"share" = "share"
+
+# ------------------------------------------------------------------------------
+# Development
+# ------------------------------------------------------------------------------
+
+[dependency-groups]
+dev = [
+  "brandgen>=2",
+  "pip-audit>=2.7",
+  "pytest>=9",
+  "reuse>=5",
+  "ruff>=0.17",
+]
+docs = [
+  "cpdocs>=0.5.0",
+  "mkdocs-materialx>=10.2",
+  "properdocs>=1.6.7",
+]
+
+# The native TOML table of pytest 9. strict turns unknown markers, unknown
+# configuration keys and xpass into errors.
+[tool.pytest]
+strict = true
+testpaths = ["tests"]
+markers = [
+  "real_kdf: keep the real parameters of every algorithm",
+]
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+select = [
+  "B", "C4", "E", "F", "I", "PT", "PTH", "RUF", "SIM", "UP", "W",
+]

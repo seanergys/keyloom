@@ -1,0 +1,78 @@
+# ------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+
+site_name: keyloom
+site_description: Field-level encryption for structured configuration files
+# The package documentation; cpdocs generates the API reference from the
+# source and mounts it under reference/api.
+docs_dir: docs/web
+site_dir: build/site
+
+theme:
+  name: materialx
+  # The brand kit is published under assets/brand by docs/hooks/brand.py.
+  logo: assets/brand/icon/svg/keyloom-icon-color-on-transparent-none.svg
+  favicon: assets/brand/icon/svg/keyloom-icon-color-on-transparent-none.svg
+  # The keyloom colours are defined in stylesheets/extra.css. The scheme
+  # follows the system and can be switched.
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.instant
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+# Numbers the sections of pages with `numbered: true` in their front matter.
+hooks:
+  - docs/hooks/numbered_headings.py
+  # Publishes the brand kit under assets/brand.
+  - docs/hooks/brand.py
+
+plugins:
+  - search
+  - cpdocs:
+      mount: reference/api
+
+nav:
+  - Introduction: index.md
+  - Getting started: getting-started.md
+  - How it works: how-it-works.md
+  - Reference: reference.md
+  - Python API: api.md
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  # Code blocks nested in content tabs need superfences.
+  - pymdownx.superfences
+  # The TOML, YAML and JSON examples are content tabs.
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true

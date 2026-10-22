@@ -21,7 +21,7 @@ checks:
   broken-references: fail
   undocumented: fail
 
-versions: [main]
+versions: [main, "0.2.0"]
 
 site:
   copyright: Copyright © SEANERGYS Partners · Apache-2.0

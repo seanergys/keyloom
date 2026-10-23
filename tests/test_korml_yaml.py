@@ -64,7 +64,7 @@ def test_multi_line_secret_at_a_nested_key_decrypts(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=lambda _location: secret,
     )
 
@@ -117,7 +117,7 @@ def test_nested_source_is_preserved_on_encryption(
             input_path=path,
             output_path=path,
             password="password",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
         == 1
@@ -149,7 +149,7 @@ def test_typed_secret_with_unwrap(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     import keyloom._files as files

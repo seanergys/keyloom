@@ -50,7 +50,7 @@ def test_file_round_trip(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     encrypted_text = path.read_text(encoding="utf-8")
@@ -92,7 +92,7 @@ def test_yaml_preserves_backslash_across_long_quoted_scalar(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     resolved = keyloom.load(path=path, password="password")
@@ -111,7 +111,7 @@ def _encrypted_toml(*, tmp_path: _pathlib.Path) -> _pathlib.Path:
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     return path
@@ -330,7 +330,7 @@ def test_encrypt_without_plaintext_leaves_the_file_alone(
             input_path=path,
             output_path=path,
             password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
         == 1
@@ -343,7 +343,7 @@ def test_encrypt_without_plaintext_leaves_the_file_alone(
             input_path=path,
             output_path=path,
             password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
         == 0
@@ -358,7 +358,7 @@ def test_encrypt_without_plaintext_leaves_the_file_alone(
             input_path=untouched,
             output_path=untouched,
             password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
         == 0
@@ -390,7 +390,7 @@ def test_decrypt_unwrap_keeps_comments(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
 
@@ -423,7 +423,7 @@ def test_load_returns_plain_python_types(
         input_path=path,
         output_path=path,
         password="password",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
 
@@ -488,7 +488,7 @@ def test_placeholder_keeps_the_layout(
         input_path=path,
         output_path=path,
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=lambda _location: "entered",
     )
 
@@ -540,7 +540,7 @@ def test_duplicate_json_keys_are_rejected_without_disclosing_values(
             input_path=path,
             output_path=path,
             password="password",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         ),
         lambda: _formats.load_plain(path=path),
@@ -594,7 +594,7 @@ def test_unreadable_documents_are_parse_errors(
             input_path=path,
             output_path=path,
             password="password",
-            algorithm="argon2-v2",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
             prompt=None,
             safety=_SAFE,
         ),
@@ -628,7 +628,7 @@ def test_unstorable_data_is_unsupported(
             path=tmp_path / f"data{suffix}",
             data=data,
             password="password",
-            algorithm="argon2-v2",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
             safety=_SAFE,
         )
     assert not list(tmp_path.iterdir())
@@ -643,7 +643,7 @@ def test_store_rejects_deeply_nested_data(tmp_path: _pathlib.Path) -> None:
             path=tmp_path / "deep.json",
             data={"a": data},
             password="password",
-            algorithm="argon2-v2",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
             safety=_SAFE,
         )
 
@@ -661,7 +661,7 @@ def test_unencryptable_secret_is_invalid(
             path=tmp_path / "data.json",
             data={"a": keyloom.secret(value=value)},
             password="password",
-            algorithm="argon2-v2",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
             safety=_SAFE,
         )
 

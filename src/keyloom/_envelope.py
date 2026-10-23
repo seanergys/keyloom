@@ -7,8 +7,11 @@
 An envelope names the algorithm that encrypted it. An algorithm is a frozen
 suite: the name fixes every cryptographic parameter, and nobody can choose
 them. Changing a parameter means adding an algorithm under a new name, so a
-name never changes meaning and old envelopes stay readable.
+name never changes meaning and old envelopes stay readable. The names are
+the members of ``keyloom.Algorithm``; this module keeps their parameters.
 """
+
+from __future__ import annotations
 
 import base64 as _base64
 import json as _json
@@ -26,7 +29,6 @@ MAGIC = "$KEYLOOM"
 # The version of the envelope grammar, independent of the algorithm. It only
 # changes if the layout of the string changes.
 VERSION = "1"
-DEFAULT_ALGORITHM = "argon2-v2"
 
 KEY_BYTES = 32
 SALT_BYTES = 16
@@ -53,23 +55,23 @@ class _Parameters(_typing.TypedDict):
     normalization: _typing.Literal["NFC"] | None
 
 
-def _algorithms() -> dict[str, _Parameters]:
+def _algorithms() -> dict[_keyloom.Algorithm, _Parameters]:
     """Return every algorithm with the parameters its name fixes.
 
     This table is the only place the parameters are defined. It is built
     anew on every call, so no caller can change it, and a change to it is a
     change to this one function. Tests replace the function to lower the
-    Argon2id cost.
+    Argon2id cost. Every member of ``keyloom.Algorithm`` has an entry.
     """
     return {
-        "argon2": {
+        _keyloom.Algorithm.ARGON2: {
             "memory_cost": 64 * 1024,
             "iterations": 3,
             "lanes": 4,
             "padding": 0,
             "normalization": None,
         },
-        "argon2-v2": {
+        _keyloom.Algorithm.ARGON2_V2: {
             "memory_cost": 64 * 1024,
             "iterations": 3,
             "lanes": 4,
@@ -79,24 +81,32 @@ def _algorithms() -> dict[str, _Parameters]:
     }
 
 
-def algorithms() -> tuple[str, ...]:
-    """Return the names of the supported algorithms."""
-    return tuple(_algorithms())
+def algorithms() -> tuple[_keyloom.Algorithm, ...]:
+    """Return the supported algorithms, in definition order."""
+    return tuple(_keyloom.Algorithm)
 
 
-def _parameters(*, algorithm: str) -> _Parameters:
-    table = _algorithms()
-    parameters = table.get(algorithm) if isinstance(algorithm, str) else None
-    if parameters is None:
-        known = ", ".join(table)
+def _algorithm(*, name: object) -> _keyloom.Algorithm:
+    """Return the member of ``keyloom.Algorithm`` for a member or its name.
+
+    An envelope carries the name as a string, and a caller may pass one
+    instead of the member; anything else is an unsupported algorithm.
+    """
+    try:
+        return _keyloom.Algorithm(name)
+    except ValueError:
+        known = ", ".join(_keyloom.Algorithm)
         raise _keyloom.UnsupportedAlgorithm(
-            f"unknown algorithm {algorithm!r}; supported: {known}"
-        )
-    return parameters
+            f"unknown algorithm {name!r}; supported: {known}"
+        ) from None
 
 
-def _aad(*, algorithm: str) -> bytes:
-    return f"{MAGIC};{VERSION};{algorithm}".encode("ascii")
+def _parameters(*, algorithm: _keyloom.Algorithm) -> _Parameters:
+    return _algorithms()[_algorithm(name=algorithm)]
+
+
+def _aad(*, algorithm: _keyloom.Algorithm) -> bytes:
+    return f"{MAGIC};{VERSION};{algorithm.value}".encode("ascii")
 
 
 def is_encrypted(*, value: _typing.Any) -> bool:
@@ -142,7 +152,9 @@ def _key_material(*, password: str, parameters: _Parameters) -> bytes:
         ) from exc
 
 
-def _argon2(*, password: str, salt: bytes, algorithm: str) -> bytes:
+def _argon2(
+    *, password: str, salt: bytes, algorithm: _keyloom.Algorithm
+) -> bytes:
     """Derive the key of an envelope with the parameters of its algorithm."""
     parameters = _parameters(algorithm=algorithm)
     material = _key_material(password=password, parameters=parameters)
@@ -211,7 +223,7 @@ def _deserialize_scalar(*, data: bytes) -> str:
     return result
 
 
-def check_parameters(*, password: str, algorithm: str) -> None:
+def check_parameters(*, password: str, algorithm: _keyloom.Algorithm) -> None:
     """Raise what encrypt_value would raise for its password or algorithm."""
     _key_material(
         password=password, parameters=_parameters(algorithm=algorithm)
@@ -238,10 +250,13 @@ def check_plaintext(*, value: _typing.Any) -> None:
     _serialize_scalar(value=value)
 
 
-def encrypt_value(*, value: _typing.Any, password: str, algorithm: str) -> str:
+def encrypt_value(
+    *, value: _typing.Any, password: str, algorithm: _keyloom.Algorithm
+) -> str:
     """Encrypt one scalar into a self-contained keyloom envelope."""
     check_plaintext(value=value)
 
+    algorithm = _algorithm(name=algorithm)
     parameters = _parameters(algorithm=algorithm)
     salt = _os.urandom(SALT_BYTES)
     nonce = _os.urandom(NONCE_BYTES)
@@ -258,7 +273,7 @@ def encrypt_value(*, value: _typing.Any, password: str, algorithm: str) -> str:
         (
             MAGIC,
             VERSION,
-            algorithm,
+            algorithm.value,
             f"s={_b64encode(data=salt)}",
             f"n={_b64encode(data=nonce)}",
             f"c={_b64encode(data=ciphertext)}",
@@ -266,7 +281,9 @@ def encrypt_value(*, value: _typing.Any, password: str, algorithm: str) -> str:
     )
 
 
-def _parse_envelope(*, encoded: str) -> tuple[str, bytes, bytes, bytes]:
+def _parse_envelope(
+    *, encoded: str
+) -> tuple[_keyloom.Algorithm, bytes, bytes, bytes]:
     parts = encoded.split(";")
     if len(parts) < 2 or parts[0] != MAGIC:
         raise _keyloom.MalformedEnvelope("value is not a keyloom envelope")
@@ -277,9 +294,8 @@ def _parse_envelope(*, encoded: str) -> tuple[str, bytes, bytes, bytes]:
     if len(parts) != 3 + len(_FIELDS):
         raise _keyloom.MalformedEnvelope("malformed keyloom value")
 
-    algorithm = parts[2]
     # Raises UnsupportedAlgorithm for a name this version does not know.
-    _parameters(algorithm=algorithm)
+    algorithm = _algorithm(name=parts[2])
 
     fields: dict[str, str] = {}
     for name, part in zip(_FIELDS, parts[3:], strict=True):

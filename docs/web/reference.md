@@ -123,7 +123,9 @@ An algorithm is a frozen suite: its name fixes every cryptographic parameter,
 and neither the command line nor the API can choose them. Changing a parameter
 means adding an algorithm under a new name, so a name never changes meaning and
 every envelope stays readable by later versions. Decryption takes the algorithm
-from the envelope; only encryption chooses one.
+from the envelope; only encryption chooses one. The command line takes the name
+with `--algorithm`; the API takes the member of @apidocs::keyloom.Algorithm,
+`ARGON2_V2` or `ARGON2`.
 
 | Algorithm | Key derivation | Password | Padding | Encryption |
 | --- | --- | --- | --- | --- |

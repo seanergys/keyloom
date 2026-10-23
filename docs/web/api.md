@@ -14,12 +14,12 @@ published version. The whole API is the `keyloom` package:
 | Write configuration with encrypted secrets | @apidocs::keyloom.store, @apidocs::keyloom.secret |
 | Encrypt, decrypt or re-encrypt a file | @apidocs::keyloom.encrypt_file, @apidocs::keyloom.decrypt_file, @apidocs::keyloom.reencrypt_file |
 | Encrypt or decrypt a single value | @apidocs::keyloom.encrypt_value, @apidocs::keyloom.decrypt_value |
-| List the algorithms | @apidocs::keyloom.algorithms |
+| Name an algorithm | @apidocs::keyloom.Algorithm, @apidocs::keyloom.algorithms |
 | Catch failures | @apidocs::keyloom.KeyloomError and its subclasses |
 
 Every parameter is keyword-only and required. `algorithm` appears only where
-something is encrypted, and the caller always names it; decryption takes the
-algorithm from each envelope.
+something is encrypted, and the caller always names it as a member of
+`keyloom.Algorithm`; decryption takes the algorithm from each envelope.
 
 ## Versions
 

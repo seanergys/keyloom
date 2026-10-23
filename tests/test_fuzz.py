@@ -81,7 +81,7 @@ def test_randomized_file_round_trips(
             input_path=path,
             output_path=path,
             password=_PASSWORD,
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
 

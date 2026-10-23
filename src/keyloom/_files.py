@@ -4,6 +4,8 @@
 # ------------------------------------------------------------------------------
 """File-level operations behind the public API and the command line."""
 
+from __future__ import annotations
+
 import collections.abc as _abc
 import contextlib as _contextlib
 import copy as _copy
@@ -225,7 +227,7 @@ def encrypt_file(
     input_path: PathLike,
     output_path: PathLike,
     password: str,
-    algorithm: str,
+    algorithm: _keyloom.Algorithm,
     prompt: _tree.Prompt | None,
     safety: OutputSafety,
 ) -> int:
@@ -290,7 +292,7 @@ def reencrypt_file(
     output_path: PathLike,
     password: str,
     new_password: str,
-    algorithm: str,
+    algorithm: _keyloom.Algorithm,
     safety: OutputSafety,
 ) -> int:
     """Encrypt every secret again; return how many there were.
@@ -341,7 +343,7 @@ def store(
     path: PathLike,
     data: _typing.Any,
     password: str,
-    algorithm: str,
+    algorithm: _keyloom.Algorithm,
     safety: OutputSafety,
 ) -> int:
     """Write ``data`` to a file with its secrets encrypted.

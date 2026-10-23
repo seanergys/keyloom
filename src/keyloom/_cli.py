@@ -23,7 +23,6 @@ import traceback as _traceback
 import warnings as _warnings
 
 import keyloom as _keyloom
-import keyloom._envelope as _envelope
 import keyloom._files as _files
 import keyloom._metadata as _metadata
 
@@ -35,6 +34,9 @@ EX_INTERRUPTED = 130
 EX_BROKEN_PIPE = 141
 
 _COMMANDS = ("encrypt", "decrypt", "reencrypt", "check")
+# The algorithm of --algorithm when it is not given. Only the command line
+# has a default; the API always names its algorithm.
+DEFAULT_ALGORITHM = _keyloom.Algorithm.ARGON2_V2
 
 
 def _stderr(*, text: str) -> None:
@@ -235,8 +237,9 @@ def _parser() -> _argparse.ArgumentParser:
     encrypt.add_argument("-o", "--output", type=_pathlib.Path)
     encrypt.add_argument(
         "--algorithm",
-        choices=_envelope.algorithms(),
-        default=_envelope.DEFAULT_ALGORITHM,
+        type=_keyloom.Algorithm,
+        choices=_keyloom.algorithms(),
+        default=DEFAULT_ALGORITHM,
         help="algorithm for newly encrypted secrets (default: %(default)s)",
     )
     _add_password_arguments(parser=encrypt)
@@ -265,8 +268,9 @@ def _parser() -> _argparse.ArgumentParser:
     reencrypt.add_argument("-o", "--output", type=_pathlib.Path)
     reencrypt.add_argument(
         "--algorithm",
-        choices=_envelope.algorithms(),
-        default=_envelope.DEFAULT_ALGORITHM,
+        type=_keyloom.Algorithm,
+        choices=_keyloom.algorithms(),
+        default=DEFAULT_ALGORITHM,
         help="algorithm to encrypt with (default: %(default)s)",
     )
     _add_password_arguments(parser=reencrypt)

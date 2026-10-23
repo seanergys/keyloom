@@ -11,7 +11,7 @@ import keyloom._envelope as _envelope
 
 def _encrypt(*, value: object, password: str) -> str:
     return _envelope.encrypt_value(
-        value=value, password=password, algorithm="argon2"
+        value=value, password=password, algorithm=keyloom.Algorithm.ARGON2
     )
 
 
@@ -47,14 +47,14 @@ def test_non_ascii_password_round_trips() -> None:
 @pytest.mark.real_kdf
 def test_argon2_uses_its_frozen_parameters() -> None:
     assert _envelope._algorithms() == {
-        "argon2": {
+        keyloom.Algorithm.ARGON2: {
             "memory_cost": 65536,
             "iterations": 3,
             "lanes": 4,
             "padding": 0,
             "normalization": None,
         },
-        "argon2-v2": {
+        keyloom.Algorithm.ARGON2_V2: {
             "memory_cost": 65536,
             "iterations": 3,
             "lanes": 4,
@@ -92,7 +92,7 @@ def test_known_answer_still_decrypts(algorithm: str) -> None:
 
 
 @pytest.mark.parametrize("algorithm", _envelope.algorithms())
-def test_every_algorithm_round_trips(algorithm: str) -> None:
+def test_every_algorithm_round_trips(algorithm: keyloom.Algorithm) -> None:
     encrypted = _envelope.encrypt_value(
         value="secret", password="password", algorithm=algorithm
     )
@@ -247,8 +247,11 @@ def test_well_formed_envelope_is_not_encrypted_again() -> None:
 @pytest.mark.real_kdf
 def test_algorithm_table_cannot_be_changed_by_callers() -> None:
     table = _envelope._algorithms()
-    table["argon2"]["memory_cost"] = 8
-    assert _envelope._algorithms()["argon2"]["memory_cost"] == 64 * 1024
+    table[keyloom.Algorithm.ARGON2]["memory_cost"] = 8
+    assert (
+        _envelope._algorithms()[keyloom.Algorithm.ARGON2]["memory_cost"]
+        == 64 * 1024
+    )
 
 
 def test_algorithm_must_be_a_known_name() -> None:
@@ -265,7 +268,9 @@ def test_padding_hides_the_length_of_short_values() -> None:
     lengths = {
         len(
             _envelope.encrypt_value(
-                value=value, password="password", algorithm="argon2-v2"
+                value=value,
+                password="password",
+                algorithm=keyloom.Algorithm.ARGON2_V2,
             )
         )
         for value in ("", "true", "7", "1234567", "glpat-abcdefghijklmnop")
@@ -277,7 +282,7 @@ def test_padding_hides_the_length_of_short_values() -> None:
 def test_padded_values_round_trip_at_block_edges(length: int) -> None:
     value = "x" * length
     encrypted = _envelope.encrypt_value(
-        value=value, password="password", algorithm="argon2-v2"
+        value=value, password="password", algorithm=keyloom.Algorithm.ARGON2_V2
     )
     assert _envelope.decrypt_value(value=encrypted, password="password") == (
         value
@@ -287,7 +292,7 @@ def test_padded_values_round_trip_at_block_edges(length: int) -> None:
 def test_argon2_v2_normalizes_the_password() -> None:
     composed, decomposed = "caf\u00e9", "cafe\u0301"
     encrypted = _envelope.encrypt_value(
-        value="token", password=composed, algorithm="argon2-v2"
+        value="token", password=composed, algorithm=keyloom.Algorithm.ARGON2_V2
     )
     assert (
         _envelope.decrypt_value(value=encrypted, password=decomposed) == "token"
@@ -296,14 +301,14 @@ def test_argon2_v2_normalizes_the_password() -> None:
 
 def test_argon2_keeps_the_password_as_entered() -> None:
     encrypted = _envelope.encrypt_value(
-        value="token", password="caf\u00e9", algorithm="argon2"
+        value="token", password="caf\u00e9", algorithm=keyloom.Algorithm.ARGON2
     )
     with pytest.raises(keyloom.DecryptionError):
         _envelope.decrypt_value(value=encrypted, password="cafe\u0301")
 
 
 def test_invalid_padding_is_malformed() -> None:
-    algorithm = "argon2-v2"
+    algorithm = keyloom.Algorithm.ARGON2_V2
     salt, nonce = b"s" * _envelope.SALT_BYTES, b"n" * _envelope.NONCE_BYTES
     key = _envelope._argon2(password="password", salt=salt, algorithm=algorithm)
     ciphertext = _aead.AESGCM(key).encrypt(
@@ -325,12 +330,16 @@ def test_password_with_a_lone_surrogate_is_rejected() -> None:
     with pytest.raises(keyloom.PasswordError, match="lone surrogate"):
         _encrypt(value="token", password="pass\udcffword")
     with pytest.raises(keyloom.PasswordError, match="lone surrogate"):
-        _envelope.check_parameters(password="\ud800", algorithm="argon2-v2")
+        _envelope.check_parameters(
+            password="\ud800", algorithm=keyloom.Algorithm.ARGON2_V2
+        )
 
 
 @pytest.mark.parametrize("value", [123, 1.25, True, None, b"bytes"])
 def test_only_strings_can_be_encrypted(value: object) -> None:
     with pytest.raises(keyloom.InvalidSecret, match="must be a string"):
         _envelope.encrypt_value(
-            value=value, password="password", algorithm="argon2-v2"
+            value=value,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
         )

@@ -19,7 +19,10 @@ def test_only_explicitly_marked_values_are_encrypted() -> None:
     }
 
     _tree.encrypt_secrets(
-        data=data, password="password", algorithm="argon2", prompt=None
+        data=data,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
 
     assert data["username"] == "oauth2"
@@ -35,7 +38,10 @@ def test_nested_lists_and_dicts() -> None:
         ]
     }
     _tree.encrypt_secrets(
-        data=data, password="password", algorithm="argon2", prompt=None
+        data=data,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     credential = data["items"][1]["credential"]
     assert _envelope.is_encrypted(value=credential["value"])
@@ -47,14 +53,20 @@ def test_encrypt_is_idempotent() -> None:
     data = {"token": {"__keyloom__": "secret", "value": "abc"}}
     assert (
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
         == 1
     )
     once = _copy.deepcopy(data)
     assert (
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
         == 0
     )
@@ -87,7 +99,10 @@ def test_unwrap_of_a_root_wrapper_returns_its_value() -> None:
 def test_encrypt_rejects_different_password_for_existing_ciphertext() -> None:
     data = {"a": {"__keyloom__": "secret", "value": "one"}}
     _tree.encrypt_secrets(
-        data=data, password="first-password", algorithm="argon2", prompt=None
+        data=data,
+        password="first-password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     data["b"] = {"__keyloom__": "secret", "value": "two"}
 
@@ -95,7 +110,7 @@ def test_encrypt_rejects_different_password_for_existing_ciphertext() -> None:
         _tree.encrypt_secrets(
             data=data,
             password="second-password",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
 
@@ -104,12 +119,18 @@ def test_reserved_marker_must_be_valid() -> None:
     unknown = {"x": {"__keyloom__": "unknown", "value": "a"}}
     with pytest.raises(keyloom.InvalidSecret):
         _tree.encrypt_secrets(
-            data=unknown, password="password", algorithm="argon2", prompt=None
+            data=unknown,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
     misspelt = {"x": {"__keyloom__": "secret", "valeu": "a"}}
     with pytest.raises(keyloom.InvalidSecret, match="'valeu'"):
         _tree.encrypt_secrets(
-            data=misspelt, password="password", algorithm="argon2", prompt=None
+            data=misspelt,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
 
 
@@ -117,7 +138,10 @@ def test_wrapper_needs_a_value() -> None:
     data = {"x": {"__keyloom__": "secret"}}
     with pytest.raises(keyloom.InvalidSecret, match="missing 'value'"):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
 
 
@@ -146,7 +170,10 @@ def test_placeholders_are_prompted_in_document_order() -> None:
         return f"value-{len(asked)}"
 
     count = _tree.encrypt_secrets(
-        data=data, password="password", algorithm="argon2", prompt=prompt
+        data=data,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=prompt,
     )
 
     assert count == 3
@@ -167,7 +194,10 @@ def test_placeholders_are_prompted_in_document_order() -> None:
 def test_wrong_password_fails_before_any_prompt() -> None:
     data = {"a": {"__keyloom__": "secret", "value": "one"}}
     _tree.encrypt_secrets(
-        data=data, password="right", algorithm="argon2", prompt=None
+        data=data,
+        password="right",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     data["b"] = {"__keyloom__": "secret", "value": _tree.PLACEHOLDER}
 
@@ -176,7 +206,10 @@ def test_wrong_password_fails_before_any_prompt() -> None:
 
     with pytest.raises(keyloom.DecryptionError):
         _tree.encrypt_secrets(
-            data=data, password="wrong", algorithm="argon2", prompt=prompt
+            data=data,
+            password="wrong",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=prompt,
         )
 
 
@@ -191,7 +224,10 @@ def test_bad_plaintext_fails_before_any_prompt() -> None:
 
     with pytest.raises(keyloom.InvalidSecret, match=r"^b: a secret must be"):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=prompt
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=prompt,
         )
     with pytest.raises(keyloom.UnsupportedAlgorithm):
         _tree.encrypt_secrets(
@@ -214,7 +250,10 @@ def test_failed_prompt_leaves_the_data_unchanged() -> None:
 
     with pytest.raises(keyloom.MissingSecret, match=r"^b: secret must"):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=prompt
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=prompt,
         )
     assert data == before
 
@@ -225,7 +264,10 @@ def test_placeholder_without_prompt_names_its_location() -> None:
         keyloom.MissingSecret, match=r"^a\.b: secret is a placeholder"
     ):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
 
 
@@ -254,7 +296,10 @@ def test_errors_name_the_location_of_the_secret() -> None:
     }
     with pytest.raises(keyloom.InvalidSecret) as exc_info:
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
     assert str(exc_info.value).startswith(
         'git."gitlab.example.org".tokens[1]: unsupported __keyloom__'
@@ -265,14 +310,20 @@ def test_non_scalar_secret_names_its_location() -> None:
     data = {"a": {"b": {"__keyloom__": "secret", "value": [1, 2]}}}
     with pytest.raises(keyloom.InvalidSecret, match=r"^a\.b: a secret must"):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
 
 
 def test_wrong_password_names_its_location() -> None:
     data = {"token": {"__keyloom__": "secret", "value": "abc"}}
     _tree.encrypt_secrets(
-        data=data, password="right", algorithm="argon2", prompt=None
+        data=data,
+        password="right",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     with pytest.raises(
         keyloom.DecryptionError, match=r"^token: wrong password"
@@ -303,7 +354,10 @@ def _problem_data() -> dict:
         "other": {"__keyloom__": "secret", "value": "b"},
     }
     _tree.encrypt_secrets(
-        data=data, password="password", algorithm="argon2", prompt=None
+        data=data,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     data["plain"] = {"__keyloom__": "secret", "value": "c"}
     data["broken"] = {"__keyloom__": "secret", "value": "$KEYLOOM;1;x"}
@@ -339,7 +393,10 @@ def test_find_problems_with_password_decrypts() -> None:
 def test_find_problems_accepts_a_clean_tree() -> None:
     data = {"t": {"__keyloom__": "secret", "value": "a"}, "n": 1}
     _tree.encrypt_secrets(
-        data=data, password="password", algorithm="argon2", prompt=None
+        data=data,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
     )
     assert _tree.find_problems(data=data, password=None) == []
     assert _tree.find_problems(data=data, password="password") == []
@@ -354,7 +411,10 @@ def test_encrypt_refuses_a_malformed_envelope() -> None:
 
     with pytest.raises(keyloom.MalformedEnvelope, match=r"^key: "):
         _tree.encrypt_secrets(
-            data=data, password="password", algorithm="argon2", prompt=None
+            data=data,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
         )
     assert data == before
 
@@ -367,7 +427,7 @@ def test_prompted_envelope_prefix_is_rejected() -> None:
         _tree.encrypt_secrets(
             data=data,
             password="password",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=lambda _location: "$KEYLOOM;typed at the prompt",
         )
     assert data == before

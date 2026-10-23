@@ -22,6 +22,7 @@ _TOML = (
 def test_public_names_are_exactly_the_api() -> None:
     assert sorted(keyloom.__all__) == sorted(
         [
+            "Algorithm",
             "DecryptionError",
             "InvalidSecret",
             "MalformedEnvelope",
@@ -71,7 +72,7 @@ def test_encrypt_in_place_and_load(tmp_path: _pathlib.Path) -> None:
         input_path=path,
         output_path=path,
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
 
@@ -92,7 +93,7 @@ def test_decrypt_file_is_the_inverse_of_encrypt_file(
         input_path=path,
         output_path=path,
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     plain = tmp_path / "plain.toml"
@@ -116,7 +117,7 @@ def test_encrypt_file_to_another_path(tmp_path: _pathlib.Path) -> None:
         input_path=source,
         output_path=target,
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
 
@@ -126,7 +127,7 @@ def test_encrypt_file_to_another_path(tmp_path: _pathlib.Path) -> None:
 
 def test_single_values_round_trip() -> None:
     envelope = keyloom.encrypt_value(
-        value="secret", password="pw", algorithm="argon2"
+        value="secret", password="pw", algorithm=keyloom.Algorithm.ARGON2
     )
     assert envelope.startswith("$KEYLOOM;1;argon2;")
     assert keyloom.decrypt_value(value=envelope, password="pw") == "secret"
@@ -134,8 +135,17 @@ def test_single_values_round_trip() -> None:
         keyloom.decrypt_value(value=envelope, password="wrong")
 
 
-def test_algorithms_lists_the_default() -> None:
-    assert "argon2" in keyloom.algorithms()
+def test_algorithms_lists_every_member() -> None:
+    assert keyloom.algorithms() == tuple(keyloom.Algorithm)
+    assert keyloom.Algorithm.ARGON2_V2 in keyloom.algorithms()
+
+
+def test_algorithm_is_its_name() -> None:
+    assert keyloom.Algorithm("argon2-v2") is keyloom.Algorithm.ARGON2_V2
+    assert str(keyloom.Algorithm.ARGON2_V2) == "argon2-v2"
+    assert keyloom.Algorithm.ARGON2_V2 == "argon2-v2"
+    with pytest.raises(ValueError, match="chamar"):
+        keyloom.Algorithm("chamar")
 
 
 @pytest.mark.parametrize("suffix", [".toml", ".yaml", ".json"])
@@ -151,7 +161,7 @@ def test_store_and_load_round_trip(
     before = repr(data)
 
     count = keyloom.store(
-        path=path, data=data, password="pw", algorithm="argon2"
+        path=path, data=data, password="pw", algorithm=keyloom.Algorithm.ARGON2
     )
 
     assert count == 2
@@ -174,7 +184,7 @@ def test_store_writes_toml_secrets_as_inline_tables(
         path=path,
         data={"git": {"token": keyloom.secret(value="abc")}},
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
     )
     text = path.read_text(encoding="utf-8")
     assert '[git]\ntoken = {__keyloom__ = "secret", value = "$KEYLOOM;' in (
@@ -188,7 +198,12 @@ def test_store_keeps_the_permissions_of_an_existing_file(
     path = tmp_path / "config.json"
     path.write_text("{}", encoding="utf-8")
     path.chmod(0o640)
-    keyloom.store(path=path, data={"a": 1}, password="pw", algorithm="argon2")
+    keyloom.store(
+        path=path,
+        data={"a": 1},
+        password="pw",
+        algorithm=keyloom.Algorithm.ARGON2,
+    )
     assert _stat.S_IMODE(path.stat().st_mode) == 0o640
 
 
@@ -198,7 +213,7 @@ def test_store_reports_data_toml_cannot_hold(tmp_path: _pathlib.Path) -> None:
             path=tmp_path / "config.toml",
             data={"a": None},
             password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
         )
 
 
@@ -211,7 +226,7 @@ def test_reencrypt_changes_the_password_without_plaintext(
         input_path=path,
         output_path=path,
         password="old",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=None,
     )
     before = path.read_text(encoding="utf-8")
@@ -221,7 +236,7 @@ def test_reencrypt_changes_the_password_without_plaintext(
         output_path=path,
         password="old",
         new_password="new",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
     )
 
     assert count == 1
@@ -245,7 +260,7 @@ def test_reencrypt_requires_every_secret_encrypted(
             output_path=path,
             password="pw",
             new_password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
         )
 
 
@@ -291,14 +306,14 @@ def test_encrypt_file_fills_placeholders(tmp_path: _pathlib.Path) -> None:
             input_path=path,
             output_path=path,
             password="pw",
-            algorithm="argon2",
+            algorithm=keyloom.Algorithm.ARGON2,
             prompt=None,
         )
     count = keyloom.encrypt_file(
         input_path=path,
         output_path=path,
         password="pw",
-        algorithm="argon2",
+        algorithm=keyloom.Algorithm.ARGON2,
         prompt=lambda location: f"entered-for-{location}",
     )
 

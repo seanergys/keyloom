@@ -121,7 +121,7 @@ keyloom.encrypt_file(
     input_path="credentials.toml",
     output_path="credentials.toml",
     password=password,
-    algorithm="argon2-v2",
+    algorithm=keyloom.Algorithm.ARGON2_V2,
     prompt=lambda location: getpass.getpass(f"Secret for {location}: "),
 )
 ```
@@ -135,14 +135,14 @@ keyloom.store(
     path="credentials.toml",
     data={"git": {"token": keyloom.secret(value=token)}},
     password=password,
-    algorithm="argon2-v2",
+    algorithm=keyloom.Algorithm.ARGON2_V2,
 )
 ```
 
 `store` writes the file fresh, so the comments of an existing file are lost;
 `encrypt_file` keeps the file as it is apart from the encrypted values. Unlike
 the command line, the API has no default algorithm: every call that encrypts
-names one.
+names one, as a member of @apidocs::keyloom.Algorithm.
 
 ## Decrypt the file
 
@@ -224,7 +224,7 @@ keyloom.reencrypt_file(
     output_path="credentials.toml",
     password=password,
     new_password=new_password,
-    algorithm="argon2-v2",
+    algorithm=keyloom.Algorithm.ARGON2_V2,
 )
 ```
 

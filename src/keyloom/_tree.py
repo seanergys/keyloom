@@ -13,6 +13,8 @@ go: ``encrypt_secrets`` asks for it, so it never exists in the file as
 plaintext.
 """
 
+from __future__ import annotations
+
 import collections.abc as _abc
 import json as _json
 import re as _re
@@ -90,7 +92,7 @@ def is_placeholder(*, wrapper: _abc.Mapping) -> bool:
     return wrapper[VALUE_KEY] == PLACEHOLDER
 
 
-def _missing() -> "_keyloom.MissingSecret":
+def _missing() -> _keyloom.MissingSecret:
     return _keyloom.MissingSecret(
         "secret is a placeholder; run keyloom encrypt to enter it"
     )
@@ -128,7 +130,11 @@ def _encrypted(*, wrapper: _abc.Mapping) -> str:
 
 
 def encrypt_secrets(
-    *, data: _typing.Any, password: str, algorithm: str, prompt: Prompt | None
+    *,
+    data: _typing.Any,
+    password: str,
+    algorithm: _keyloom.Algorithm,
+    prompt: Prompt | None,
 ) -> int:
     """Encrypt every plaintext secret and placeholder in place.
 

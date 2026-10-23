@@ -18,6 +18,7 @@ The modules whose names start with an underscore are the implementation.
 
 from __future__ import annotations
 
+import enum as _enum
 import typing as _typing
 
 import keyloom._envelope as _envelope
@@ -87,6 +88,30 @@ class UnsafeOutput(KeyloomError):
 
 
 # ------------------------------------------------------------------------------
+# Algorithms
+# ------------------------------------------------------------------------------
+
+
+class Algorithm(_enum.StrEnum):
+    """The algorithms that encrypt a secret.
+
+    An algorithm is a frozen suite: its name fixes every cryptographic
+    parameter, and a change to a parameter is a new member under a new name.
+    An envelope names the algorithm that encrypted it, so an old member keeps
+    decrypting after a newer one is added. Every member is also its name as a
+    string, which is what the envelope carries.
+    """
+
+    ARGON2 = "argon2"
+    """Argon2id (64 MiB, 3 passes, 4 lanes) and AES-256-GCM; the password
+    bytes are used as entered and the plaintext is not padded."""
+
+    ARGON2_V2 = "argon2-v2"
+    """As `ARGON2`, with the password normalized to NFC and the plaintext
+    padded to a multiple of 32 bytes, so the envelope hides its length."""
+
+
+# ------------------------------------------------------------------------------
 # Configuration in applications
 # ------------------------------------------------------------------------------
 
@@ -117,7 +142,7 @@ def store(
     path: str | pathlib.Path,
     data: typing.Any,
     password: str,
-    algorithm: str,
+    algorithm: Algorithm,
     dangerous_allow_writing_to_symlink: bool = False,
     dangerous_allow_hard_links: bool = False,
 ) -> int:
@@ -134,7 +159,7 @@ def store(
 
     @param password The vault password.
 
-    @param algorithm The algorithm for the secrets, from `algorithms`.
+    @param algorithm The `Algorithm` for the secrets.
 
     @return The number of secrets encrypted.
 
@@ -181,7 +206,7 @@ def encrypt_file(
     input_path: str | pathlib.Path,
     output_path: str | pathlib.Path,
     password: str,
-    algorithm: str,
+    algorithm: Algorithm,
     prompt: typing.Callable[[str], typing.Any] | None,
     dangerous_allow_writing_to_symlink: bool = False,
     dangerous_allow_hard_links: bool = False,
@@ -205,7 +230,7 @@ def encrypt_file(
     @param password The vault password, also checked against existing
     envelopes.
 
-    @param algorithm The algorithm for newly encrypted secrets.
+    @param algorithm The `Algorithm` for newly encrypted secrets.
 
     @param prompt Called once for every placeholder, in document order, with
     its location such as `git."gitlab.example.org".token`; returns its
@@ -287,7 +312,7 @@ def reencrypt_file(
     output_path: str | pathlib.Path,
     password: str,
     new_password: str,
-    algorithm: str,
+    algorithm: Algorithm,
     dangerous_allow_writing_to_symlink: bool = False,
     dangerous_allow_hard_links: bool = False,
 ) -> int:
@@ -305,7 +330,7 @@ def reencrypt_file(
 
     @param new_password The vault password to encrypt with.
 
-    @param algorithm The algorithm to encrypt with.
+    @param algorithm The `Algorithm` to encrypt with.
 
     @return The number of secrets encrypted again.
 
@@ -338,7 +363,9 @@ def reencrypt_file(
 # ------------------------------------------------------------------------------
 
 
-def encrypt_value(*, value: typing.Any, password: str, algorithm: str) -> str:
+def encrypt_value(
+    *, value: typing.Any, password: str, algorithm: Algorithm
+) -> str:
     """Encrypt one value into a self-contained envelope string.
 
     The envelope names its algorithm and carries its own salt and nonce, so
@@ -348,7 +375,7 @@ def encrypt_value(*, value: typing.Any, password: str, algorithm: str) -> str:
 
     @param password The vault password.
 
-    @param algorithm The algorithm, from `algorithms`.
+    @param algorithm The `Algorithm` to encrypt with.
 
     @return An envelope such as `$KEYLOOM;1;argon2;s=...;n=...;c=...`.
 
@@ -378,18 +405,19 @@ def decrypt_value(*, value: str, password: str) -> typing.Any:
     return _envelope.decrypt_value(value=value, password=password)
 
 
-def algorithms() -> tuple[str, ...]:
-    """Return the names of the supported algorithms.
+def algorithms() -> tuple[Algorithm, ...]:
+    """Return the supported algorithms, oldest first.
 
-    An algorithm name fixes every cryptographic parameter; new parameters
-    come as a new name.
+    This is `tuple(Algorithm)`; it exists so that a tool can list them
+    without knowing the enumeration.
 
-    @return The names, such as `("argon2",)`.
+    @return The members of `Algorithm`.
     """
     return _envelope.algorithms()
 
 
 __all__ = [
+    "Algorithm",
     "DecryptionError",
     "InvalidSecret",
     "KeyloomError",

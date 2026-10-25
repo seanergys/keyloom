@@ -17,7 +17,7 @@ license-files = ["LICENSES/*"]
 dynamic = ["version"]
 dependencies = [
   "cryptography>=44",
-  "korml==0.1.0",
+  "korml==0.2.0",
   "tomlkit>=0.13",
 ]
 

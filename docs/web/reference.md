@@ -12,10 +12,11 @@ Keyloom determines the serialization format from the filename extension.
 | Format | Extensions |
 | --- | --- |
 | TOML | `.toml` |
+| KORML | `.korml` |
 | YAML | `.yaml`, `.yml` |
 | JSON | `.json` |
 
-YAML input uses the KORML v0 reader: unversioned, single-document,
+KORML and YAML input use the KORML v0 reader: unversioned, single-document,
 JSON-shaped YAML with block and flow collections. YAML anchors, aliases,
 custom tags and multi-document streams are not supported. Duplicate mapping
 keys and malformed collections are rejected. Every YAML scalar is a string,

@@ -101,6 +101,7 @@ The format of a file follows its extension:
 | Format | Extensions      |
 | ------ | --------------- |
 | TOML   | `.toml`         |
+| KORML  | `.korml`        |
 | YAML   | `.yaml`, `.yml` |
 | JSON   | `.json`         |
 

@@ -38,7 +38,7 @@ _SAFE = _files.OutputSafety(allow_symlink=False, allow_hard_links=False)
 
 @pytest.mark.parametrize(
     ("suffix", "text"),
-    [(".toml", _TOML), (".yaml", _YAML), (".json", _JSON)],
+    [(".toml", _TOML), (".korml", _YAML), (".yaml", _YAML), (".json", _JSON)],
 )
 def test_file_round_trip(
     tmp_path: _pathlib.Path, suffix: str, text: str

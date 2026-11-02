@@ -52,7 +52,7 @@ class PasswordError(KeyloomError):
 
 
 class ParseError(KeyloomError):
-    """A file is not valid TOML, YAML, JSON or UTF-8."""
+    """A file is not valid TOML, KORML, YAML, JSON or UTF-8."""
 
 
 class UnsupportedFormat(KeyloomError):
@@ -122,7 +122,7 @@ def load(*, path: str | pathlib.Path, password: str) -> typing.Any:
     The result is made of plain dicts, lists and scalars, with every secret
     wrapper replaced by its value.
 
-    @param path TOML, YAML or JSON file, chosen by its extension.
+    @param path TOML, KORML, YAML or JSON file, chosen by its extension.
 
     @param password The vault password.
 
@@ -153,7 +153,7 @@ def store(
     permissions are, and a new file gets mode 0600. `data` itself is not
     changed.
 
-    @param path TOML, YAML or JSON file, chosen by its extension.
+    @param path TOML, KORML, YAML or JSON file, chosen by its extension.
 
     @param data Dicts, lists and scalars, with secrets marked by `secret`.
 

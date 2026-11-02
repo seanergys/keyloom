@@ -84,8 +84,6 @@ def test_multi_line_secret_at_a_nested_key_decrypts(
         "secret: hunter2\nsecret: hunter3\n",
         "nested: {a: x, a: y}\n",
         "items: [a,,b]\n",
-        "value: *unsafe\n",
-        "value: &unsafe token\n",
         "---\nsecret: hunter2\n",
         "%!korml version 1.0\n---\nsecret: hunter2\n...\n",
     ],
@@ -97,6 +95,20 @@ def test_invalid_or_unsupported_yaml_is_rejected_without_secrets(
         _formats.load_text(text=source, syntax="yaml")
     assert "hunter" not in str(caught.value)
     assert "invalid YAML" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "scalar",
+    ["*unsafe", "&unsafe token", "!unsafe token"],
+)
+def test_yaml_indicators_are_ordinary_characters(scalar: str) -> None:
+    loaded = _formats.load_text(text=f"value: {scalar}\n", syntax="yaml")
+    assert loaded == {"value": scalar}
+    assert (
+        _formats.dump_text(data=loaded, syntax="yaml") == f"value: {scalar}\n"
+    )
+    written = _formats.dump_text(data=dict(loaded), syntax="yaml")
+    assert written == f'"value": "{scalar}"\n'
 
 
 def test_nested_source_is_preserved_on_encryption(

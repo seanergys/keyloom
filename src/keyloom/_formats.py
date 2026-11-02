@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
 # SPDX-License-Identifier: Apache-2.0
 # ------------------------------------------------------------------------------
-"""Reading and writing TOML, YAML and JSON.
+"""Reading and writing TOML, KORML, YAML and JSON.
 
 ``load_file`` and ``dump_text`` round-trip a document with its comments and
 formatting, for operations that write the file back. ``load_plain`` parses
@@ -21,8 +21,10 @@ import tomlkit.exceptions as _tomlkit_exceptions
 import keyloom as _keyloom
 import keyloom._korml_yaml as _korml_yaml
 
+# KORML files go through the reader of YAML files, which is KORML v0.
 _SUFFIXES = {
     ".toml": "toml",
+    ".korml": "yaml",
     ".yaml": "yaml",
     ".yml": "yaml",
     ".json": "json",

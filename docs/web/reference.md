@@ -17,11 +17,12 @@ Keyloom determines the serialization format from the filename extension.
 | JSON | `.json` |
 
 KORML and YAML input use the KORML v0 reader: unversioned, single-document,
-JSON-shaped YAML with block and flow collections. YAML anchors, aliases,
-custom tags and multi-document streams are not supported. Duplicate mapping
-keys and malformed collections are rejected. Every YAML scalar is a string,
-quoted or not: `port: 5432` reads as the string `"5432"`, and Keyloom gives no
-meaning to the values it does not encrypt. New YAML files can therefore hold
+JSON-shaped YAML with block and flow collections. Multi-document streams are
+not supported, and YAML anchors, aliases and tags have no meaning: `&`, `*` and
+`!` are ordinary characters, so `value: *other` reads as the string `"*other"`.
+Duplicate mapping keys and malformed collections are rejected. Every YAML
+scalar is a string, quoted or not: `port: 5432` reads as the string `"5432"`,
+and Keyloom gives no meaning to the values it does not encrypt. New YAML files can therefore hold
 strings, lists and mappings only. When changing a loaded file, Keyloom
 replaces only the values it changes, written double-quoted, and keeps every
 comment and the formatting of everything else.

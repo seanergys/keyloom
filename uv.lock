@@ -642,7 +642,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=44" },
-    { name = "korml", specifier = "==0.2.0" },
+    { name = "korml", specifier = "==0.3.1" },
     { name = "tomlkit", specifier = ">=0.13" },
 ]
 
@@ -671,11 +671,11 @@ wheels = [
 
 [[package]]
 name = "korml"
-version = "0.2.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c5/7b/ce9b3b74234fc0300b1999e2a56d8630f344f731dca270a76476aa62daeb/korml-0.2.0.tar.gz", hash = "sha256:4e6ebf400dc1121029dcc4c8f3bee1bacfc1bd2719a96a681c7a68603f5c9dd6", size = 342520, upload-time = "2026-10-22T06:57:19.264Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/84/a759e0eeb4e420d0e02b049f77e6976893c301833b5feff1ba85e2945c3a/korml-0.3.1.tar.gz", hash = "sha256:234bae7e7194d6d8a77dc56bae703cba7942c0d2eb24d449ee1249cc1df77c98", size = 469796, upload-time = "2026-11-02T12:12:50.725Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/e1/06c744594ee451dbf70e5c5d0b35d66180fbfe0854ba27afc659836f2560/korml-0.2.0-py3-none-any.whl", hash = "sha256:50a13b78faf72b1b13cbec1a61a6868c0299cc235e5df0fc95b700d545830488", size = 53563, upload-time = "2026-10-22T06:57:09.877Z" },
+    { url = "https://files.pythonhosted.org/packages/67/83/b955166bb18deac1843d364372770009dbd6dff01777510da0aa4b702aec/korml-0.3.1-py3-none-any.whl", hash = "sha256:55a85995253f058512f1032b606a23b78b1bdc50ecd46b084ad8b91f044e1100", size = 76134, upload-time = "2026-11-02T12:12:51.912Z" },
 ]
 
 [[package]]

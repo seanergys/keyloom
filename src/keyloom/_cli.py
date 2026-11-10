@@ -39,6 +39,20 @@ _COMMANDS = ("encrypt", "decrypt", "reencrypt", "check")
 DEFAULT_ALGORITHM = _keyloom.Algorithm.ARGON2_V2
 
 
+def _visible(*, text: str) -> str:
+    """Return one line of output with unprintable characters escaped.
+
+    File names, and document keys in messages, come from outside keyloom.
+    Written raw, an escape sequence in one could hide or rewrite what the
+    terminal shows, and a line break could forge a line of output. Every
+    character that is not printable, line breaks, C1 controls and bidi
+    controls included, is written as its Python escape instead.
+    """
+    return "".join(
+        char if char.isprintable() else ascii(char)[1:-1] for char in text
+    )
+
+
 def _stderr(*, text: str) -> None:
     """Write one message to standard error, which may be closed."""
     stream = _sys.stderr
@@ -139,7 +153,8 @@ def _read_password_file(*, path: _pathlib.Path) -> str:
         mode = path.stat().st_mode & 0o777
         if mode & 0o077:
             _stderr(
-                text=f"keyloom: warning: {path} is accessible to other users "
+                text=f"keyloom: warning: {_visible(text=str(path))} is "
+                "accessible to other users "
                 f"(mode {mode:04o}); restrict it with chmod 600"
             )
     try:
@@ -317,10 +332,13 @@ def _encrypt(*, args: _argparse.Namespace) -> int:
         safety=_output_safety(args=args),
     )
     if count == 0 and args.output is None:
-        _stdout(text=f"{args.file}: nothing to encrypt\n")
+        _stdout(text=f"{_visible(text=str(args.file))}: nothing to encrypt\n")
     else:
         target = args.output or args.file
-        _stdout(text=f"{target}: encrypted {_secrets(count=count)}\n")
+        _stdout(
+            text=f"{_visible(text=str(target))}: encrypted "
+            f"{_secrets(count=count)}\n"
+        )
     return 0
 
 
@@ -365,7 +383,10 @@ def _reencrypt(*, args: _argparse.Namespace) -> int:
         algorithm=args.algorithm,
         safety=_output_safety(args=args),
     )
-    _stdout(text=f"{target}: re-encrypted {_secrets(count=count)}\n")
+    _stdout(
+        text=f"{_visible(text=str(target))}: re-encrypted "
+        f"{_secrets(count=count)}\n"
+    )
     return 0
 
 
@@ -378,7 +399,9 @@ def _check(*, args: _argparse.Namespace) -> int:
         except (_keyloom.KeyloomError, OSError) as exc:
             problems.append(_describe(error=exc))
     if problems:
-        _stdout(text="".join(f"{problem}\n" for problem in problems))
+        _stdout(
+            text="".join(f"{_visible(text=problem)}\n" for problem in problems)
+        )
     return 1 if problems else 0
 
 
@@ -386,9 +409,9 @@ def _describe(*, error: Exception) -> str:
     """Return the one-line message of a failure the user can fix."""
     if isinstance(error, OSError) and error.strerror:
         if error.filename is not None:
-            return f"{error.filename}: {error.strerror}"
-        return error.strerror
-    return str(error)
+            return _visible(text=f"{error.filename}: {error.strerror}")
+        return _visible(text=error.strerror)
+    return _visible(text=str(error))
 
 
 def _environment() -> str:

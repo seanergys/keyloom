@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import collections.abc as _abc
 import contextlib as _contextlib
-import copy as _copy
 import dataclasses as _dataclasses
 import os as _os
 import pathlib as _pathlib
@@ -54,20 +53,33 @@ def _destination(
     directory fd allows stat, temporary-file creation and replacement to act
     on the same directory, even if a parent symlink is later retargeted.
     """
-    if path.is_symlink() and not safety.allow_symlink:
-        raise _keyloom.UnsafeOutput(
-            f"refusing to write through a symbolic link: {path}; pass "
-            "--dangerous-allow-writing-to-symlink to write to its target"
-        )
-    resolved = path.resolve()
-    resolved.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        if not safety.allow_symlink:
+            raise _keyloom.UnsafeOutput(
+                f"refusing to write through a symbolic link: {path}; pass "
+                "--dangerous-allow-writing-to-symlink to write to its target"
+            )
+        # Follow the link once, now, because the caller asked for it.
+        path = _pathlib.Path(_os.path.realpath(path))
+    # The final component names the file inside the pinned parent, so it
+    # must be a name: "." and "" have none, and ".." names another
+    # directory, whose own name would be written inside the parent.
+    if path.name in ("", ".", ".."):
+        raise _keyloom.UnsafeOutput(f"output path is not a file name: {path}")
+    # Only the parent is resolved. The final component is never resolved,
+    # so a link that appears there after the check above is not followed:
+    # _target_stat sees it through the directory fd and refuses, and
+    # os.replace through that fd replaces a link instead of its target.
+    parent = path.parent.resolve()
+    parent.mkdir(parents=True, exist_ok=True)
+    destination = parent / path.name
     directory_fd = None
     if _os.name == "posix":
         directory_fd = _os.open(
-            resolved.parent, _os.O_RDONLY | getattr(_os, "O_DIRECTORY", 0)
+            parent, _os.O_RDONLY | getattr(_os, "O_DIRECTORY", 0)
         )
     try:
-        yield resolved, directory_fd
+        yield destination, directory_fd
     finally:
         if directory_fd is not None:
             _os.close(directory_fd)
@@ -108,6 +120,17 @@ def _check_hard_links(
     )
 
 
+def _permissions(*, info: _os.stat_result | None, mode: int | None) -> int:
+    """Return the mode for a new output.
+
+    An explicit ``mode`` wins; otherwise an existing output keeps its
+    permission bits, and a new one gets 0600.
+    """
+    if mode is not None:
+        return mode
+    return info.st_mode & 0o777 if info is not None else 0o600
+
+
 def _atomic_write(
     *,
     path: _pathlib.Path,
@@ -132,23 +155,22 @@ def _atomic_write(
                 handle.write(text)
                 handle.flush()
                 _os.fsync(handle.fileno())
-            info = _target_stat(path=path, directory_fd=None)
-            _check_hard_links(path=path, info=info, safety=safety)
-            if (
-                protected_identity is not None
-                and info is not None
-                and (info.st_dev, info.st_ino) == protected_identity
-            ):
-                raise _keyloom.UnsafeOutput(
-                    "refusing to write plaintext over the encrypted "
-                    f"input: {path}"
-                )
-            permissions = (
-                (info.st_mode & 0o777)
-                if mode is None and info is not None
-                else (mode if mode is not None else 0o600)
-            )
-            tmp.chmod(permissions)
+                info = _target_stat(path=path, directory_fd=None)
+                _check_hard_links(path=path, info=info, safety=safety)
+                if (
+                    protected_identity is not None
+                    and info is not None
+                    and (info.st_dev, info.st_ino) == protected_identity
+                ):
+                    raise _keyloom.UnsafeOutput(
+                        "refusing to write plaintext over the encrypted "
+                        f"input: {path}"
+                    )
+                permissions = _permissions(info=info, mode=mode)
+                if hasattr(_os, "fchmod"):
+                    _os.fchmod(handle.fileno(), permissions)
+            if not hasattr(_os, "fchmod"):
+                tmp.chmod(permissions)
             tmp.replace(path)
         finally:
             tmp.unlink(missing_ok=True)
@@ -163,28 +185,38 @@ def _atomic_write(
             handle.write(text)
             handle.flush()
             _os.fsync(handle.fileno())
-        info = _target_stat(path=path, directory_fd=directory_fd)
-        _check_hard_links(path=path, info=info, safety=safety)
-        if (
-            protected_identity is not None
-            and info is not None
-            and (info.st_dev, info.st_ino) == protected_identity
-        ):
-            raise _keyloom.UnsafeOutput(
-                f"refusing to write plaintext over the encrypted input: {path}"
-            )
-        permissions = (
-            (info.st_mode & 0o777)
-            if mode is None and info is not None
-            else (mode if mode is not None else 0o600)
-        )
-        _os.chmod(temp_name, permissions, dir_fd=directory_fd)
+            info = _target_stat(path=path, directory_fd=directory_fd)
+            _check_hard_links(path=path, info=info, safety=safety)
+            if (
+                protected_identity is not None
+                and info is not None
+                and (info.st_dev, info.st_ino) == protected_identity
+            ):
+                raise _keyloom.UnsafeOutput(
+                    "refusing to write plaintext over the encrypted input: "
+                    f"{path}"
+                )
+            # Through the descriptor, never by name: in a directory others
+            # can write, the temporary name may by now be their symlink, and
+            # a chmod by name would change the mode of the file it names.
+            _os.fchmod(handle.fileno(), _permissions(info=info, mode=mode))
+            created = _os.fstat(handle.fileno())
         _os.replace(
             temp_name,
             path.name,
             src_dir_fd=directory_fd,
             dst_dir_fd=directory_fd,
         )
+        # Without this, a crash can undo the replacement, and an in-place
+        # encrypt would leave the plaintext file behind.
+        _os.fsync(directory_fd)
+        # os.replace moves whatever the temporary name holds. If that is no
+        # longer the file written above, the output is not what was written.
+        final = _os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        if (final.st_dev, final.st_ino) != (created.st_dev, created.st_ino):
+            raise _keyloom.UnsafeOutput(
+                f"output was replaced during the write: {path}"
+            )
     finally:
         with _contextlib.suppress(FileNotFoundError):
             _os.unlink(temp_name, dir_fd=directory_fd)
@@ -325,6 +357,32 @@ def reencrypt_file(
     return count
 
 
+def _plain_copy(*, data: _typing.Any, active: set[int]) -> _typing.Any:
+    """Copy ``data`` into dicts and lists, the containers the walks know.
+
+    The secret walk and the serializers must see the same tree: a secret in
+    a tuple or an immutable Mapping would otherwise be written by the
+    serializer without being encrypted. Each occurrence of a shared object
+    is copied on its own, so a secret() used in two fields gets two
+    envelopes. ``active`` holds the containers being copied, to refuse a
+    container that contains itself.
+    """
+    if not isinstance(data, _abc.Mapping | list | tuple):
+        return data
+    if id(data) in active:
+        raise _keyloom.UnsupportedFormat("data contains itself")
+    active.add(id(data))
+    try:
+        if isinstance(data, _abc.Mapping):
+            return {
+                key: _plain_copy(data=item, active=active)
+                for key, item in data.items()
+            }
+        return [_plain_copy(data=item, active=active) for item in data]
+    finally:
+        active.discard(id(data))
+
+
 def _inline_wrappers(*, data: _typing.Any) -> _typing.Any:
     """Turn secret wrappers into TOML inline tables, which read better."""
     if _tree.is_secret(value=data):
@@ -359,7 +417,7 @@ def store(
         _errors.context(prefix=str(target)),
         _errors.nesting(error=_keyloom.UnsupportedFormat),
     ):
-        data = _copy.deepcopy(data)
+        data = _plain_copy(data=data, active=set())
         count = _tree.encrypt_secrets(
             data=data, password=password, algorithm=algorithm, prompt=None
         )

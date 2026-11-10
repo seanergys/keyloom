@@ -6,7 +6,9 @@
 
 import inspect as _inspect
 import pathlib as _pathlib
+import re as _re
 import stat as _stat
+import types as _types
 
 import pytest
 
@@ -174,6 +176,76 @@ def test_store_and_load_round_trip(
         "token": "glpat-abc",
         "hosts": [{"name": "a", "port": "22"}],
     }
+
+
+@pytest.mark.parametrize("suffix", [".toml", ".korml", ".json"])
+def test_store_encrypts_secrets_in_tuples_and_immutable_mappings(
+    tmp_path: _pathlib.Path, suffix: str
+) -> None:
+    path = tmp_path / f"config{suffix}"
+    data = {
+        "pair": (keyloom.secret(value="in-a-tuple"), "public"),
+        "nested": ((keyloom.secret(value="in-nested-tuples"),),),
+        "frozen": _types.MappingProxyType(
+            {"token": keyloom.secret(value="in-a-mapping-proxy")}
+        ),
+        "wrapper": _types.MappingProxyType(
+            dict(keyloom.secret(value="in-a-frozen-wrapper"))
+        ),
+    }
+
+    count = keyloom.store(
+        path=path, data=data, password="pw", algorithm=keyloom.Algorithm.ARGON2
+    )
+
+    assert count == 4
+    assert "in-a-" not in path.read_text(encoding="utf-8")
+    assert keyloom.load(path=path, password="pw") == {
+        "pair": ["in-a-tuple", "public"],
+        "nested": [["in-nested-tuples"]],
+        "frozen": {"token": "in-a-mapping-proxy"},
+        "wrapper": "in-a-frozen-wrapper",
+    }
+
+
+@pytest.mark.parametrize("suffix", [".toml", ".korml", ".json"])
+def test_store_gives_a_shared_secret_an_envelope_per_field(
+    tmp_path: _pathlib.Path, suffix: str
+) -> None:
+    path = tmp_path / f"config{suffix}"
+    shared = keyloom.secret(value="same")
+    group = {"token": shared}
+
+    count = keyloom.store(
+        path=path,
+        data={"a": shared, "b": [shared], "c": group, "d": group},
+        password="pw",
+        algorithm=keyloom.Algorithm.ARGON2,
+    )
+
+    assert count == 4
+    text = path.read_text(encoding="utf-8")
+    envelopes = _re.findall(r"\$KEYLOOM;[^\"\s,}]+", text)
+    assert len(envelopes) == 4
+    assert len(set(envelopes)) == 4
+
+
+def test_store_refuses_data_that_contains_itself(
+    tmp_path: _pathlib.Path,
+) -> None:
+    path = tmp_path / "config.json"
+    data: dict[str, object] = {"token": keyloom.secret(value="abc")}
+    data["self"] = data
+
+    with pytest.raises(keyloom.UnsupportedFormat, match="contains itself"):
+        keyloom.store(
+            path=path,
+            data=data,
+            password="pw",
+            algorithm=keyloom.Algorithm.ARGON2,
+        )
+
+    assert not path.exists()
 
 
 def test_store_writes_toml_secrets_as_inline_tables(

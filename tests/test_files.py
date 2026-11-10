@@ -6,12 +6,15 @@ import os as _os
 import pathlib as _pathlib
 import re as _re
 import stat as _stat
+import sys as _sys
+import traceback as _traceback
 
 import pytest
 
 import keyloom
 import keyloom._files as _files
 import keyloom._formats as _formats
+import keyloom._tree as _tree
 
 _TOML = (
     "# keep this comment\n"
@@ -255,7 +258,63 @@ def test_retargeted_output_symlink_cannot_redirect_plaintext(
     assert 'value = "abc"' in target.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("name", [".", "..", "sub/.."])
+def test_output_path_without_a_file_name_is_refused(
+    tmp_path: _pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    """An output of "." or ".." is refused, not written inside its parent."""
+    source = _encrypted_toml(tmp_path=tmp_path)
+    work = tmp_path / "work"
+    (work / "sub").mkdir(parents=True)
+    monkeypatch.chdir(work)
+    before = sorted(path.name for path in tmp_path.rglob("*"))
+
+    with pytest.raises(keyloom.UnsafeOutput, match="not a file name"):
+        keyloom.decrypt_file(
+            input_path=source,
+            output_path=_pathlib.Path(name),
+            password="password",
+        )
+
+    assert sorted(path.name for path in tmp_path.rglob("*")) == before
+
+
 @pytest.mark.skipif(_os.name != "posix", reason="POSIX symlink semantics")
+def test_output_swapped_for_a_symlink_after_the_check_is_refused(
+    tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A link planted between the symlink check and the write is not followed.
+
+    Only a parent directory is resolved; the final component is reached
+    through that directory, so a link appearing there is seen and refused.
+    """
+    source = _encrypted_toml(tmp_path=tmp_path)
+    victim = tmp_path / "victim.toml"
+    victim.write_text("untouched", encoding="utf-8")
+    output = tmp_path / "shared" / "plain.toml"
+    output.parent.mkdir()
+    output.write_text("stale", encoding="utf-8")
+    real_is_symlink = _pathlib.Path.is_symlink
+
+    def swap_after_check(self: _pathlib.Path) -> bool:
+        result = real_is_symlink(self)
+        if self == output:
+            output.unlink()
+            output.symlink_to(victim)
+        return result
+
+    monkeypatch.setattr(_pathlib.Path, "is_symlink", swap_after_check)
+    with pytest.raises(keyloom.UnsafeOutput, match="changed to a symlink"):
+        keyloom.decrypt_file(
+            input_path=source, output_path=output, password="password"
+        )
+
+    assert victim.read_text(encoding="utf-8") == "untouched"
+    assert output.is_symlink()
+
+
 def test_retargeted_parent_symlink_cannot_redirect_plaintext(
     tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -317,6 +376,53 @@ def test_swapped_destination_entry_cannot_overwrite_input(
     assert source.read_bytes() == encrypted_before
     assert target.samefile(source)
     assert not list(tmp_path.glob(".output.toml.*"))
+
+
+@pytest.mark.skipif(_os.name != "posix", reason="POSIX symlink semantics")
+def test_swapped_temporary_name_cannot_change_another_files_mode(
+    tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The output mode is set on the written file, not on its name.
+
+    Another user who can write the output directory swaps the temporary
+    name for a symlink to a private file; that file keeps its mode, and the
+    write is refused because the output is no longer what was written.
+    """
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    output = shared / "config.toml"
+    output.write_text(
+        'token = { __keyloom__ = "secret", value = "abc" }\n',
+        encoding="utf-8",
+    )
+    output.chmod(0o644)
+    private = tmp_path / "private.key"
+    private.write_text("private", encoding="utf-8")
+    private.chmod(0o600)
+    real_fsync = _os.fsync
+    swapped = []
+
+    def swap_temporary_name(fd: int) -> None:
+        real_fsync(fd)
+        if not swapped:
+            (temporary,) = shared.glob(".config.toml.*")
+            temporary.rename(tmp_path / "moved-away")
+            temporary.symlink_to(private)
+            swapped.append(temporary)
+
+    monkeypatch.setattr(_os, "fsync", swap_temporary_name)
+    with pytest.raises(keyloom.UnsafeOutput, match="replaced during the write"):
+        keyloom.encrypt_file(
+            input_path=output,
+            output_path=output,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
+        )
+
+    assert swapped
+    assert _stat.S_IMODE(private.stat().st_mode) == 0o600
+    assert private.read_text(encoding="utf-8") == "private"
 
 
 def test_encrypt_without_plaintext_leaves_the_file_alone(
@@ -502,11 +608,19 @@ def test_placeholder_keeps_the_layout(
         'token:\n  __keyloom__: secret\n  value: "hunter2\n',
         "token: hunter2\ntoken: hunter3\n",
         "a: [hunter2\n",
+        "token:\nhunter2\n",
+        "token: x\nhunter2\n",
+        "a: 1\n|\n  hunter2\n",
     ],
 )
 def test_yaml_parse_errors_do_not_quote_the_file(
     tmp_path: _pathlib.Path, text: str
 ) -> None:
+    """Neither the message nor a logged traceback shows the document.
+
+    korml's own error quotes the document, so it must not be kept as the
+    cause or context of keyloom's.
+    """
     path = tmp_path / "broken.yaml"
     path.write_text(text, encoding="utf-8")
 
@@ -516,6 +630,9 @@ def test_yaml_parse_errors_do_not_quote_the_file(
         message = str(exc_info.value)
         assert "hunter" not in message
         assert "line " in message
+        logged = "".join(_traceback.format_exception(exc_info.value))
+        assert "hunter" not in logged
+        assert "korml.error" not in logged
 
 
 @pytest.mark.parametrize(
@@ -561,11 +678,90 @@ def test_yaml_duplicate_key_is_named() -> None:
 _HUGE = "9" * 5000
 
 
+def _nested(*, suffix: str, depth: int) -> str:
+    """Return a document whose innermost value sits ``depth`` levels deep."""
+    if suffix == ".json":
+        return '{"a": ' + "[" * (depth - 1) + '"x"' + "]" * (depth - 1) + "}"
+    return "a = " + "[" * (depth - 1) + '"x"' + "]" * (depth - 1) + "\n"
+
+
+def test_walks_refuse_data_deeper_than_max_depth(
+    tmp_path: _pathlib.Path,
+) -> None:
+    """The limit holds even where the recursion limit would allow more.
+
+    TOML shows it: keyloom.load reads it with tomllib, which has no depth
+    limit of its own. JSON has a lower limit of its own.
+    """
+    suffix = ".toml"
+    limit = _sys.getrecursionlimit()
+    _sys.setrecursionlimit(20_000)
+    try:
+        path = tmp_path / f"deep{suffix}"
+        path.write_text(
+            _nested(suffix=suffix, depth=_tree.MAX_DEPTH), encoding="utf-8"
+        )
+        assert _files.load(path=path, password="password")["a"]
+
+        path.write_text(
+            _nested(suffix=suffix, depth=_tree.MAX_DEPTH + 1), encoding="utf-8"
+        )
+        for operation in (
+            lambda: _files.load(path=path, password="password"),
+            lambda: _files.check_file(path=path, password=None),
+            lambda: _files.decrypt_text(
+                path=path, password="password", unwrap=True
+            ),
+        ):
+            with pytest.raises(keyloom.ParseError, match="nested"):
+                operation()
+    finally:
+        _sys.setrecursionlimit(limit)
+
+
+def test_json_deeper_than_its_limit_is_refused(
+    tmp_path: _pathlib.Path,
+) -> None:
+    """JSON is rewritten indented, so its depth bounds the output's growth."""
+    path = tmp_path / "deep.json"
+    depth = _formats.JSON_MAX_DEPTH
+    zeros = ",".join(["0"] * 2_000)
+    path.write_text(
+        '{"t": {"__keyloom__": "secret", "value": "x"}, "a": '
+        + "[" * (depth - 1)
+        + zeros
+        + "]" * (depth - 1)
+        + "}",
+        encoding="utf-8",
+    )
+    size = path.stat().st_size
+    keyloom.encrypt_file(
+        input_path=path,
+        output_path=path,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
+    )
+    text = _files.decrypt_text(path=path, password="password", unwrap=False)
+    assert len(text) < (depth + 2) * size
+
+    path.write_text("[" * (depth + 1) + "]" * (depth + 1), encoding="utf-8")
+    for operation in (
+        lambda: _files.load(path=path, password="password"),
+        lambda: _files.check_file(path=path, password=None),
+        lambda: _files.decrypt_text(
+            path=path, password="password", unwrap=False
+        ),
+    ):
+        with pytest.raises(keyloom.ParseError, match="levels deep"):
+            operation()
+
+
 @pytest.mark.parametrize(
     ("name", "text", "message"),
     [
         ("huge.json", f'{{"a": {_HUGE}}}', "integer with too many digits"),
-        ("deep.json", "[" * 2_000 + "]" * 2_000, "nested too deeply"),
+        ("deep.json", "[" * 2_000 + "]" * 2_000, "nested"),
         ("deep.yaml", "[" * 2_000 + "]" * 2_000, "nested too deeply"),
         ("lone.json", '{"a": "\\ud800"}', "lone surrogate"),
         ("lone.yaml", 'a: "\\ud800"\n', "lone surrogate"),
@@ -601,6 +797,47 @@ def test_unreadable_documents_are_parse_errors(
     ):
         with pytest.raises(keyloom.ParseError, match=message):
             operation()
+
+
+def test_duplicate_key_in_a_toml_inline_table_is_a_parse_error(
+    tmp_path: _pathlib.Path,
+) -> None:
+    """tomlkit reports it with an error that is not a ValueError."""
+    path = tmp_path / "dupe.toml"
+    path.write_text(
+        "a = { keyname = 1, keyname = 2 }\n"
+        'token = { __keyloom__ = "secret", value = "abc" }\n',
+        encoding="utf-8",
+    )
+
+    for operation in (
+        lambda: _files.check_file(path=path, password=None),
+        lambda: _files.decrypt_text(
+            path=path, password="password", unwrap=False
+        ),
+        lambda: _files.encrypt_file(
+            input_path=path,
+            output_path=path,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
+            prompt=None,
+            safety=_SAFE,
+        ),
+        lambda: _files.reencrypt_file(
+            input_path=path,
+            output_path=path,
+            password="password",
+            new_password="other",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
+            safety=_SAFE,
+        ),
+    ):
+        with pytest.raises(keyloom.ParseError, match="duplicate key") as info:
+            operation()
+        assert "keyname" not in str(info.value)
+
+    with pytest.raises(keyloom.ParseError):
+        _files.load(path=path, password="password")
 
 
 @pytest.mark.parametrize(

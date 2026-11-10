@@ -585,6 +585,64 @@ def test_missing_file_is_a_one_line_error(
     assert capsys.readouterr().out == f"{missing}: No such file or directory\n"
 
 
+# Each name holds a character a terminal would act on: hide the rest of the
+# line, return to its start, end it, ring, start a C1 control sequence, or
+# reverse the text that follows.
+_HOSTILE_NAMES = [
+    "a\x1b[8m.toml",
+    "b\r\x1b[2K.toml",
+    "c\nall files encrypted.toml",
+    "d\x07.toml",
+    "e\x9b31m.toml",
+    "f‮lmot.toml",
+]
+
+
+def _unprintable(text: str) -> list[str]:
+    return [char for char in text if char != "\n" and not char.isprintable()]
+
+
+@pytest.mark.skipif(_os.name != "posix", reason="POSIX file names")
+def test_file_names_are_escaped_in_every_line_of_output(
+    tmp_path: _pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _path, password_file = _write(tmp_path=tmp_path)
+    paths = [tmp_path / name for name in _HOSTILE_NAMES]
+    for path in paths:
+        path.write_text(_CREDENTIALS, encoding="utf-8")
+    missing = tmp_path / "g\x1b[31mmissing.toml"
+
+    assert _cli.run(argv=["check", *map(str, paths), str(missing)]) == 1
+    out = capsys.readouterr().out
+    assert _unprintable(out) == []
+    assert len(out.splitlines()) == len(paths) + 1
+    assert "\\x1b[8m" in out
+
+    source = ["--password-file", str(password_file)]
+    assert _cli.run(argv=["encrypt", *source, str(paths[0])]) == 0
+    assert _cli.run(argv=["decrypt", *source, str(missing)]) == 1
+    captured = capsys.readouterr()
+    assert _unprintable(captured.out + captured.err) == []
+    assert len(captured.out.splitlines()) == 1
+    assert len(captured.err.splitlines()) == 1
+
+
+@pytest.mark.skipif(_os.name != "posix", reason="POSIX file modes")
+def test_password_file_warning_escapes_the_name(
+    tmp_path: _pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path, _password_file = _write(tmp_path=tmp_path)
+    password_file = tmp_path / "pw\x1b]0;title\x07"
+    password_file.write_text("password\n", encoding="utf-8")
+    password_file.chmod(0o644)
+
+    source = ["--password-file", str(password_file)]
+    assert _cli.run(argv=["encrypt", *source, str(path)]) == 0
+    err = capsys.readouterr().err
+    assert "accessible to other users" in err
+    assert _unprintable(err) == []
+
+
 _HOSTILE = {
     "huge.yaml": "a: " + "9" * 5000 + "\n",
     "huge.json": '{"a": ' + "9" * 5000 + "}",
@@ -602,6 +660,7 @@ _HOSTILE = {
     "bom.json": "\ufeff{}",
     "envelope.yaml": 'a:\n  __keyloom__: secret\n  value: "$KEYLOOM;1;é;s=a"\n',
     "binary.txt": "not a config file\n",
+    "dupe.toml": "a = { b = 1, b = 2 }\n",
 }
 
 

@@ -121,6 +121,17 @@ def _check_hard_links(
     )
 
 
+def _permissions(*, info: _os.stat_result | None, mode: int | None) -> int:
+    """Return the mode for a new output.
+
+    An explicit ``mode`` wins; otherwise an existing output keeps its
+    permission bits, and a new one gets 0600.
+    """
+    if mode is not None:
+        return mode
+    return info.st_mode & 0o777 if info is not None else 0o600
+
+
 def _atomic_write(
     *,
     path: _pathlib.Path,
@@ -145,23 +156,22 @@ def _atomic_write(
                 handle.write(text)
                 handle.flush()
                 _os.fsync(handle.fileno())
-            info = _target_stat(path=path, directory_fd=None)
-            _check_hard_links(path=path, info=info, safety=safety)
-            if (
-                protected_identity is not None
-                and info is not None
-                and (info.st_dev, info.st_ino) == protected_identity
-            ):
-                raise _keyloom.UnsafeOutput(
-                    "refusing to write plaintext over the encrypted "
-                    f"input: {path}"
-                )
-            permissions = (
-                (info.st_mode & 0o777)
-                if mode is None and info is not None
-                else (mode if mode is not None else 0o600)
-            )
-            tmp.chmod(permissions)
+                info = _target_stat(path=path, directory_fd=None)
+                _check_hard_links(path=path, info=info, safety=safety)
+                if (
+                    protected_identity is not None
+                    and info is not None
+                    and (info.st_dev, info.st_ino) == protected_identity
+                ):
+                    raise _keyloom.UnsafeOutput(
+                        "refusing to write plaintext over the encrypted "
+                        f"input: {path}"
+                    )
+                permissions = _permissions(info=info, mode=mode)
+                if hasattr(_os, "fchmod"):
+                    _os.fchmod(handle.fileno(), permissions)
+            if not hasattr(_os, "fchmod"):
+                tmp.chmod(permissions)
             tmp.replace(path)
         finally:
             tmp.unlink(missing_ok=True)
@@ -176,22 +186,22 @@ def _atomic_write(
             handle.write(text)
             handle.flush()
             _os.fsync(handle.fileno())
-        info = _target_stat(path=path, directory_fd=directory_fd)
-        _check_hard_links(path=path, info=info, safety=safety)
-        if (
-            protected_identity is not None
-            and info is not None
-            and (info.st_dev, info.st_ino) == protected_identity
-        ):
-            raise _keyloom.UnsafeOutput(
-                f"refusing to write plaintext over the encrypted input: {path}"
-            )
-        permissions = (
-            (info.st_mode & 0o777)
-            if mode is None and info is not None
-            else (mode if mode is not None else 0o600)
-        )
-        _os.chmod(temp_name, permissions, dir_fd=directory_fd)
+            info = _target_stat(path=path, directory_fd=directory_fd)
+            _check_hard_links(path=path, info=info, safety=safety)
+            if (
+                protected_identity is not None
+                and info is not None
+                and (info.st_dev, info.st_ino) == protected_identity
+            ):
+                raise _keyloom.UnsafeOutput(
+                    "refusing to write plaintext over the encrypted input: "
+                    f"{path}"
+                )
+            # Through the descriptor, never by name: in a directory others
+            # can write, the temporary name may by now be their symlink, and
+            # a chmod by name would change the mode of the file it names.
+            _os.fchmod(handle.fileno(), _permissions(info=info, mode=mode))
+            created = _os.fstat(handle.fileno())
         _os.replace(
             temp_name,
             path.name,
@@ -201,6 +211,13 @@ def _atomic_write(
         # Without this, a crash can undo the replacement, and an in-place
         # encrypt would leave the plaintext file behind.
         _os.fsync(directory_fd)
+        # os.replace moves whatever the temporary name holds. If that is no
+        # longer the file written above, the output is not what was written.
+        final = _os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        if (final.st_dev, final.st_ino) != (created.st_dev, created.st_ino):
+            raise _keyloom.UnsafeOutput(
+                f"output was replaced during the write: {path}"
+            )
     finally:
         with _contextlib.suppress(FileNotFoundError):
             _os.unlink(temp_name, dir_fd=directory_fd)

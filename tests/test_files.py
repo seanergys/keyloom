@@ -375,6 +375,53 @@ def test_swapped_destination_entry_cannot_overwrite_input(
     assert not list(tmp_path.glob(".output.toml.*"))
 
 
+@pytest.mark.skipif(_os.name != "posix", reason="POSIX symlink semantics")
+def test_swapped_temporary_name_cannot_change_another_files_mode(
+    tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The output mode is set on the written file, not on its name.
+
+    Another user who can write the output directory swaps the temporary
+    name for a symlink to a private file; that file keeps its mode, and the
+    write is refused because the output is no longer what was written.
+    """
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    output = shared / "config.toml"
+    output.write_text(
+        'token = { __keyloom__ = "secret", value = "abc" }\n',
+        encoding="utf-8",
+    )
+    output.chmod(0o644)
+    private = tmp_path / "private.key"
+    private.write_text("private", encoding="utf-8")
+    private.chmod(0o600)
+    real_fsync = _os.fsync
+    swapped = []
+
+    def swap_temporary_name(fd: int) -> None:
+        real_fsync(fd)
+        if not swapped:
+            (temporary,) = shared.glob(".config.toml.*")
+            temporary.rename(tmp_path / "moved-away")
+            temporary.symlink_to(private)
+            swapped.append(temporary)
+
+    monkeypatch.setattr(_os, "fsync", swap_temporary_name)
+    with pytest.raises(keyloom.UnsafeOutput, match="replaced during the write"):
+        keyloom.encrypt_file(
+            input_path=output,
+            output_path=output,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2,
+            prompt=None,
+        )
+
+    assert swapped
+    assert _stat.S_IMODE(private.stat().st_mode) == 0o600
+    assert private.read_text(encoding="utf-8") == "private"
+
+
 def test_encrypt_without_plaintext_leaves_the_file_alone(
     tmp_path: _pathlib.Path,
 ) -> None:

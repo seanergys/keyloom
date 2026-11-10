@@ -54,20 +54,28 @@ def _destination(
     directory fd allows stat, temporary-file creation and replacement to act
     on the same directory, even if a parent symlink is later retargeted.
     """
-    if path.is_symlink() and not safety.allow_symlink:
-        raise _keyloom.UnsafeOutput(
-            f"refusing to write through a symbolic link: {path}; pass "
-            "--dangerous-allow-writing-to-symlink to write to its target"
-        )
-    resolved = path.resolve()
-    resolved.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        if not safety.allow_symlink:
+            raise _keyloom.UnsafeOutput(
+                f"refusing to write through a symbolic link: {path}; pass "
+                "--dangerous-allow-writing-to-symlink to write to its target"
+            )
+        # Follow the link once, now, because the caller asked for it.
+        path = _pathlib.Path(_os.path.realpath(path))
+    # Only the parent is resolved. The final component is never resolved,
+    # so a link that appears there after the check above is not followed:
+    # _target_stat sees it through the directory fd and refuses, and
+    # os.replace through that fd replaces a link instead of its target.
+    parent = path.parent.resolve()
+    parent.mkdir(parents=True, exist_ok=True)
+    destination = parent / path.name
     directory_fd = None
     if _os.name == "posix":
         directory_fd = _os.open(
-            resolved.parent, _os.O_RDONLY | getattr(_os, "O_DIRECTORY", 0)
+            parent, _os.O_RDONLY | getattr(_os, "O_DIRECTORY", 0)
         )
     try:
-        yield resolved, directory_fd
+        yield destination, directory_fd
     finally:
         if directory_fd is not None:
             _os.close(directory_fd)
@@ -185,6 +193,9 @@ def _atomic_write(
             src_dir_fd=directory_fd,
             dst_dir_fd=directory_fd,
         )
+        # Without this, a crash can undo the replacement, and an in-place
+        # encrypt would leave the plaintext file behind.
+        _os.fsync(directory_fd)
     finally:
         with _contextlib.suppress(FileNotFoundError):
             _os.unlink(temp_name, dir_fd=directory_fd)

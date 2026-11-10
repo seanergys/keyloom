@@ -256,6 +256,39 @@ def test_retargeted_output_symlink_cannot_redirect_plaintext(
 
 
 @pytest.mark.skipif(_os.name != "posix", reason="POSIX symlink semantics")
+def test_output_swapped_for_a_symlink_after_the_check_is_refused(
+    tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A link planted between the symlink check and the write is not followed.
+
+    Only a parent directory is resolved; the final component is reached
+    through that directory, so a link appearing there is seen and refused.
+    """
+    source = _encrypted_toml(tmp_path=tmp_path)
+    victim = tmp_path / "victim.toml"
+    victim.write_text("untouched", encoding="utf-8")
+    output = tmp_path / "shared" / "plain.toml"
+    output.parent.mkdir()
+    output.write_text("stale", encoding="utf-8")
+    real_is_symlink = _pathlib.Path.is_symlink
+
+    def swap_after_check(self: _pathlib.Path) -> bool:
+        result = real_is_symlink(self)
+        if self == output:
+            output.unlink()
+            output.symlink_to(victim)
+        return result
+
+    monkeypatch.setattr(_pathlib.Path, "is_symlink", swap_after_check)
+    with pytest.raises(keyloom.UnsafeOutput, match="changed to a symlink"):
+        keyloom.decrypt_file(
+            input_path=source, output_path=output, password="password"
+        )
+
+    assert victim.read_text(encoding="utf-8") == "untouched"
+    assert output.is_symlink()
+
+
 def test_retargeted_parent_symlink_cannot_redirect_plaintext(
     tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

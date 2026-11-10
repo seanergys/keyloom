@@ -718,6 +718,47 @@ def test_unreadable_documents_are_parse_errors(
             operation()
 
 
+def test_duplicate_key_in_a_toml_inline_table_is_a_parse_error(
+    tmp_path: _pathlib.Path,
+) -> None:
+    """tomlkit reports it with an error that is not a ValueError."""
+    path = tmp_path / "dupe.toml"
+    path.write_text(
+        "a = { keyname = 1, keyname = 2 }\n"
+        'token = { __keyloom__ = "secret", value = "abc" }\n',
+        encoding="utf-8",
+    )
+
+    for operation in (
+        lambda: _files.check_file(path=path, password=None),
+        lambda: _files.decrypt_text(
+            path=path, password="password", unwrap=False
+        ),
+        lambda: _files.encrypt_file(
+            input_path=path,
+            output_path=path,
+            password="password",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
+            prompt=None,
+            safety=_SAFE,
+        ),
+        lambda: _files.reencrypt_file(
+            input_path=path,
+            output_path=path,
+            password="password",
+            new_password="other",
+            algorithm=keyloom.Algorithm.ARGON2_V2,
+            safety=_SAFE,
+        ),
+    ):
+        with pytest.raises(keyloom.ParseError, match="duplicate key") as info:
+            operation()
+        assert "keyname" not in str(info.value)
+
+    with pytest.raises(keyloom.ParseError):
+        _files.load(path=path, password="password")
+
+
 @pytest.mark.parametrize(
     ("suffix", "data"),
     [

@@ -660,6 +660,7 @@ _HOSTILE = {
     "bom.json": "\ufeff{}",
     "envelope.yaml": 'a:\n  __keyloom__: secret\n  value: "$KEYLOOM;1;é;s=a"\n',
     "binary.txt": "not a config file\n",
+    "dupe.toml": "a = { b = 1, b = 2 }\n",
 }
 
 

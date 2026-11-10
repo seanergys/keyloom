@@ -39,6 +39,10 @@ def _describe(*, error: Exception, syntax: str) -> str:
     """
     if syntax == "json" and str(error) == "duplicate object key":
         return "invalid JSON: duplicate object key"
+    # tomlkit raises this, not a ParseError, for a key repeated inside an
+    # inline table. Its message names the key, which is not repeated.
+    if isinstance(error, _tomlkit_exceptions.KeyAlreadyPresent):
+        return f"invalid {syntax.upper()}: duplicate key"
     if isinstance(
         error,
         (
@@ -125,7 +129,8 @@ def load_text(*, text: str, syntax: str) -> _typing.Any:
             data = _korml_yaml.read(text=text, roundtrip=True)
         else:
             data = _parse_json(text=text)
-    except ValueError as exc:
+    # tomlkit's errors are not all ValueErrors: KeyAlreadyPresent is not.
+    except (ValueError, _tomlkit_exceptions.TOMLKitError) as exc:
         message = _describe(error=exc, syntax=syntax)
         raise _keyloom.ParseError(message) from exc
     check_strings(

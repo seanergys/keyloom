@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import collections.abc as _abc
 import contextlib as _contextlib
-import copy as _copy
 import dataclasses as _dataclasses
 import os as _os
 import pathlib as _pathlib
@@ -358,6 +357,32 @@ def reencrypt_file(
     return count
 
 
+def _plain_copy(*, data: _typing.Any, active: set[int]) -> _typing.Any:
+    """Copy ``data`` into dicts and lists, the containers the walks know.
+
+    The secret walk and the serializers must see the same tree: a secret in
+    a tuple or an immutable Mapping would otherwise be written by the
+    serializer without being encrypted. Each occurrence of a shared object
+    is copied on its own, so a secret() used in two fields gets two
+    envelopes. ``active`` holds the containers being copied, to refuse a
+    container that contains itself.
+    """
+    if not isinstance(data, _abc.Mapping | list | tuple):
+        return data
+    if id(data) in active:
+        raise _keyloom.UnsupportedFormat("data contains itself")
+    active.add(id(data))
+    try:
+        if isinstance(data, _abc.Mapping):
+            return {
+                key: _plain_copy(data=item, active=active)
+                for key, item in data.items()
+            }
+        return [_plain_copy(data=item, active=active) for item in data]
+    finally:
+        active.discard(id(data))
+
+
 def _inline_wrappers(*, data: _typing.Any) -> _typing.Any:
     """Turn secret wrappers into TOML inline tables, which read better."""
     if _tree.is_secret(value=data):
@@ -392,7 +417,7 @@ def store(
         _errors.context(prefix=str(target)),
         _errors.nesting(error=_keyloom.UnsupportedFormat),
     ):
-        data = _copy.deepcopy(data)
+        data = _plain_copy(data=data, active=set())
         count = _tree.encrypt_secrets(
             data=data, password=password, algorithm=algorithm, prompt=None
         )

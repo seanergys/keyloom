@@ -54,10 +54,18 @@ def read(*, text: str, roundtrip: bool) -> _typing.Any:
     With roundtrip, a mapping or sequence document keeps the korml stream, so
     write() can change values without reformatting the rest of the file.
     """
+    # Each korml error is replaced, and raised outside the except clause:
+    # korml's messages quote the document, so the error must not stay
+    # reachable as the cause or context of keyloom's, where a logged
+    # traceback would show it.
     try:
         stream = _korml.loads(text)
     except _korml.KormlError as exc:
-        raise _problem(exc) from exc
+        problem: _keyloom.KeyloomError | None = _problem(exc)
+    else:
+        problem = None
+    if problem is not None:
+        raise problem
     if (
         stream.version is not _model.Version.v0
         or len(stream.document_array) > 1
@@ -85,12 +93,14 @@ def dump(*, data: _typing.Any) -> str:
     """Write new YAML; every scalar must be a string."""
     try:
         return _korml.dumps(data, version=_model.Version.v0)
-    except (TypeError, ValueError) as exc:
-        # korml's message can quote the value, so it is not repeated.
-        raise _keyloom.UnsupportedFormat(
-            "YAML cannot store this data: every value must be a string, a "
-            "list or a mapping with string keys"
-        ) from exc
+    except (TypeError, ValueError):
+        pass
+    # korml's message can quote the value, so it is neither repeated nor
+    # kept as the context of this error.
+    raise _keyloom.UnsupportedFormat(
+        "YAML cannot store this data: every value must be a string, a "
+        "list or a mapping with string keys"
+    )
 
 
 def _replacements(
@@ -140,4 +150,9 @@ def write(*, data: _YamlMap | _YamlList) -> str:
     try:
         return _korml.edit(stream=stream, replacements=found)
     except ValueError as exc:
-        raise _keyloom.UnsupportedFormat(f"YAML edit failed: {exc}") from exc
+        code = exc.code() if isinstance(exc, _korml.KormlError) else None
+    # korml's message can quote a replacement, which may be a decrypted
+    # secret, so only its code is kept, and not the error itself.
+    raise _keyloom.UnsupportedFormat(
+        f"YAML edit failed: {code or 'the edit was refused'}"
+    )

@@ -6,6 +6,7 @@ import os as _os
 import pathlib as _pathlib
 import re as _re
 import stat as _stat
+import traceback as _traceback
 
 import pytest
 
@@ -605,11 +606,19 @@ def test_placeholder_keeps_the_layout(
         'token:\n  __keyloom__: secret\n  value: "hunter2\n',
         "token: hunter2\ntoken: hunter3\n",
         "a: [hunter2\n",
+        "token:\nhunter2\n",
+        "token: x\nhunter2\n",
+        "a: 1\n|\n  hunter2\n",
     ],
 )
 def test_yaml_parse_errors_do_not_quote_the_file(
     tmp_path: _pathlib.Path, text: str
 ) -> None:
+    """Neither the message nor a logged traceback shows the document.
+
+    korml's own error quotes the document, so it must not be kept as the
+    cause or context of keyloom's.
+    """
     path = tmp_path / "broken.yaml"
     path.write_text(text, encoding="utf-8")
 
@@ -619,6 +628,9 @@ def test_yaml_parse_errors_do_not_quote_the_file(
         message = str(exc_info.value)
         assert "hunter" not in message
         assert "line " in message
+        logged = "".join(_traceback.format_exception(exc_info.value))
+        assert "hunter" not in logged
+        assert "korml.error" not in logged
 
 
 @pytest.mark.parametrize(

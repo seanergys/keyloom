@@ -6,6 +6,7 @@ import os as _os
 import pathlib as _pathlib
 import re as _re
 import stat as _stat
+import sys as _sys
 import traceback as _traceback
 
 import pytest
@@ -13,6 +14,7 @@ import pytest
 import keyloom
 import keyloom._files as _files
 import keyloom._formats as _formats
+import keyloom._tree as _tree
 
 _TOML = (
     "# keep this comment\n"
@@ -674,6 +676,46 @@ def test_yaml_duplicate_key_is_named() -> None:
 
 
 _HUGE = "9" * 5000
+
+
+def _nested(*, suffix: str, depth: int) -> str:
+    """Return a document whose innermost value sits ``depth`` levels deep."""
+    if suffix == ".json":
+        return '{"a": ' + "[" * (depth - 1) + '"x"' + "]" * (depth - 1) + "}"
+    return "a = " + "[" * (depth - 1) + '"x"' + "]" * (depth - 1) + "\n"
+
+
+@pytest.mark.parametrize("suffix", [".json", ".toml"])
+def test_walks_refuse_data_deeper_than_max_depth(
+    tmp_path: _pathlib.Path, suffix: str
+) -> None:
+    """The limit holds even where the recursion limit would allow more."""
+    limit = _sys.getrecursionlimit()
+    _sys.setrecursionlimit(20_000)
+    try:
+        path = tmp_path / f"deep{suffix}"
+        path.write_text(
+            _nested(suffix=suffix, depth=_tree.MAX_DEPTH), encoding="utf-8"
+        )
+        assert _files.load(path=path, password="password")["a"]
+        if suffix == ".json":
+            # tomlkit, which check uses for TOML, stops at 100 levels.
+            assert _files.check_file(path=path, password=None) == []
+
+        path.write_text(
+            _nested(suffix=suffix, depth=_tree.MAX_DEPTH + 1), encoding="utf-8"
+        )
+        for operation in (
+            lambda: _files.load(path=path, password="password"),
+            lambda: _files.check_file(path=path, password=None),
+            lambda: _files.decrypt_text(
+                path=path, password="password", unwrap=True
+            ),
+        ):
+            with pytest.raises(keyloom.ParseError, match="nested"):
+                operation()
+    finally:
+        _sys.setrecursionlimit(limit)
 
 
 @pytest.mark.parametrize(

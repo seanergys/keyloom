@@ -33,6 +33,11 @@ _FIELDS = frozenset({MARKER_KEY, VALUE_KEY})
 
 Location = tuple[str | int, ...]
 
+# How deeply the walks below descend: korml's limit for YAML, so every file
+# korml reads can be walked. Deeper data is refused whatever Python's
+# recursion limit is, which a program using keyloom may have raised.
+MAX_DEPTH = 128
+
 # Called once per placeholder with its rendered location; returns its value.
 Prompt = _abc.Callable[[str], _typing.Any]
 
@@ -105,15 +110,35 @@ def _children(*, value: _typing.Any) -> _typing.Iterator[str | int]:
         yield from range(len(value))
 
 
+def _too_deep() -> RecursionError:
+    """Return the error for data nested deeper than MAX_DEPTH.
+
+    It is a RecursionError, which every caller of the walks already turns
+    into its own error, as it does when Python's recursion limit is hit.
+    """
+    return RecursionError(f"data is nested more than {MAX_DEPTH} levels deep")
+
+
 def _wrappers(
-    *, value: _typing.Any, location: Location
+    *, value: _typing.Any, path: list[str | int]
 ) -> _typing.Iterator[tuple[Location, _typing.Any]]:
-    """Yield every secret wrapper in the tree with its location."""
+    """Yield every secret wrapper in the tree with its location.
+
+    ``path`` is the location of ``value``, as one list shared by the whole
+    walk: a tuple for every level would take memory that grows with the
+    square of the depth. A tuple is made only for a wrapper.
+    """
     if is_secret(value=value):
-        yield location, value
+        yield tuple(path), value
         return
     for child in _children(value=value):
-        yield from _wrappers(value=value[child], location=(*location, child))
+        if len(path) >= MAX_DEPTH:
+            raise _too_deep()
+        path.append(child)
+        try:
+            yield from _wrappers(value=value[child], path=path)
+        finally:
+            path.pop()
 
 
 def _encrypted(*, wrapper: _abc.Mapping) -> str:
@@ -148,7 +173,7 @@ def encrypt_secrets(
     Return how many secrets were encrypted.
     """
     pending = []
-    for location, wrapper in _wrappers(value=data, location=()):
+    for location, wrapper in _wrappers(value=data, path=[]):
         with _errors.context(prefix=format_location(location=location)):
             validate_secret(value=wrapper)
             if is_placeholder(wrapper=wrapper):
@@ -186,7 +211,7 @@ def encrypt_secrets(
 
 def decrypt_secrets(*, data: _typing.Any, password: str) -> None:
     """Decrypt every secret in place; plaintext secrets are an error."""
-    for location, wrapper in _wrappers(value=data, location=()):
+    for location, wrapper in _wrappers(value=data, path=[]):
         with _errors.context(prefix=format_location(location=location)):
             encoded = _encrypted(wrapper=wrapper)
             wrapper[VALUE_KEY] = _envelope.decrypt_value(
@@ -202,7 +227,7 @@ def find_problems(*, data: _typing.Any, password: str | None) -> list[str]:
     also decrypted.
     """
     problems = []
-    for location, wrapper in _wrappers(value=data, location=()):
+    for location, wrapper in _wrappers(value=data, path=[]):
         where = format_location(location=location)
         try:
             encoded = _encrypted(wrapper=wrapper)
@@ -215,16 +240,22 @@ def find_problems(*, data: _typing.Any, password: str | None) -> list[str]:
     return problems
 
 
-def _unwrap(*, data: _typing.Any, location: Location) -> _typing.Any:
+def _unwrap(*, data: _typing.Any, path: list[str | int]) -> _typing.Any:
     if is_secret(value=data):
-        with _errors.context(prefix=format_location(location=location)):
+        with _errors.context(prefix=format_location(location=tuple(path))):
             validate_secret(value=data)
             if is_placeholder(wrapper=data):
                 raise _missing()
-        return _unwrap(data=data[VALUE_KEY], location=location)
+        return _unwrap(data=data[VALUE_KEY], path=path)
     for child in _children(value=data):
+        if len(path) >= MAX_DEPTH:
+            raise _too_deep()
         item = data[child]
-        replacement = _unwrap(data=item, location=(*location, child))
+        path.append(child)
+        try:
+            replacement = _unwrap(data=item, path=path)
+        finally:
+            path.pop()
         # Assign only what changed, so round-trip documents keep the
         # formatting of every untouched value.
         if replacement is not item:
@@ -239,4 +270,4 @@ def unwrap_secrets(*, data: _typing.Any) -> _typing.Any:
     document keeps its comments. The return value is ``data``, or the
     wrapped value if ``data`` itself is a secret wrapper.
     """
-    return _unwrap(data=data, location=())
+    return _unwrap(data=data, path=[])

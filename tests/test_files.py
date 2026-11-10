@@ -685,11 +685,15 @@ def _nested(*, suffix: str, depth: int) -> str:
     return "a = " + "[" * (depth - 1) + '"x"' + "]" * (depth - 1) + "\n"
 
 
-@pytest.mark.parametrize("suffix", [".json", ".toml"])
 def test_walks_refuse_data_deeper_than_max_depth(
-    tmp_path: _pathlib.Path, suffix: str
+    tmp_path: _pathlib.Path,
 ) -> None:
-    """The limit holds even where the recursion limit would allow more."""
+    """The limit holds even where the recursion limit would allow more.
+
+    TOML shows it: keyloom.load reads it with tomllib, which has no depth
+    limit of its own. JSON has a lower limit of its own.
+    """
+    suffix = ".toml"
     limit = _sys.getrecursionlimit()
     _sys.setrecursionlimit(20_000)
     try:
@@ -698,9 +702,6 @@ def test_walks_refuse_data_deeper_than_max_depth(
             _nested(suffix=suffix, depth=_tree.MAX_DEPTH), encoding="utf-8"
         )
         assert _files.load(path=path, password="password")["a"]
-        if suffix == ".json":
-            # tomlkit, which check uses for TOML, stops at 100 levels.
-            assert _files.check_file(path=path, password=None) == []
 
         path.write_text(
             _nested(suffix=suffix, depth=_tree.MAX_DEPTH + 1), encoding="utf-8"
@@ -718,11 +719,49 @@ def test_walks_refuse_data_deeper_than_max_depth(
         _sys.setrecursionlimit(limit)
 
 
+def test_json_deeper_than_its_limit_is_refused(
+    tmp_path: _pathlib.Path,
+) -> None:
+    """JSON is rewritten indented, so its depth bounds the output's growth."""
+    path = tmp_path / "deep.json"
+    depth = _formats.JSON_MAX_DEPTH
+    zeros = ",".join(["0"] * 2_000)
+    path.write_text(
+        '{"t": {"__keyloom__": "secret", "value": "x"}, "a": '
+        + "[" * (depth - 1)
+        + zeros
+        + "]" * (depth - 1)
+        + "}",
+        encoding="utf-8",
+    )
+    size = path.stat().st_size
+    keyloom.encrypt_file(
+        input_path=path,
+        output_path=path,
+        password="password",
+        algorithm=keyloom.Algorithm.ARGON2,
+        prompt=None,
+    )
+    text = _files.decrypt_text(path=path, password="password", unwrap=False)
+    assert len(text) < (depth + 2) * size
+
+    path.write_text("[" * (depth + 1) + "]" * (depth + 1), encoding="utf-8")
+    for operation in (
+        lambda: _files.load(path=path, password="password"),
+        lambda: _files.check_file(path=path, password=None),
+        lambda: _files.decrypt_text(
+            path=path, password="password", unwrap=False
+        ),
+    ):
+        with pytest.raises(keyloom.ParseError, match="levels deep"):
+            operation()
+
+
 @pytest.mark.parametrize(
     ("name", "text", "message"),
     [
         ("huge.json", f'{{"a": {_HUGE}}}', "integer with too many digits"),
-        ("deep.json", "[" * 2_000 + "]" * 2_000, "nested too deeply"),
+        ("deep.json", "[" * 2_000 + "]" * 2_000, "nested"),
         ("deep.yaml", "[" * 2_000 + "]" * 2_000, "nested too deeply"),
         ("lone.json", '{"a": "\\ud800"}', "lone surrogate"),
         ("lone.yaml", 'a: "\\ud800"\n', "lone surrogate"),

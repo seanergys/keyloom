@@ -115,8 +115,39 @@ def _unique_json_object(pairs: list[tuple[str, _typing.Any]]) -> dict:
     return result
 
 
+# How deeply a JSON document may nest. JSON is the one format keyloom
+# writes afresh instead of editing in place, with an indentation of two
+# spaces per level, so output can grow to about the depth times the input:
+# a compact array of zeros nested d levels deep turns two bytes per value
+# into a line of 2*d + 3. This limit keeps that factor near 33, far above
+# the nesting of any configuration file.
+JSON_MAX_DEPTH = 32
+
+
+def _json_depth(*, data: _typing.Any) -> int:
+    """Return how many containers deep ``data`` nests, without recursion."""
+    deepest = 0
+    pending = [(data, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if isinstance(value, dict):
+            children = value.values()
+        elif isinstance(value, list):
+            children = value
+        else:
+            continue
+        deepest = max(deepest, depth + 1)
+        pending.extend((child, depth + 1) for child in children)
+    return deepest
+
+
 def _parse_json(*, text: str) -> _typing.Any:
-    return _json.loads(text, object_pairs_hook=_unique_json_object)
+    data = _json.loads(text, object_pairs_hook=_unique_json_object)
+    if _json_depth(data=data) > JSON_MAX_DEPTH:
+        raise _keyloom.ParseError(
+            f"invalid JSON: nested more than {JSON_MAX_DEPTH} levels deep"
+        )
+    return data
 
 
 def load_text(*, text: str, syntax: str) -> _typing.Any:

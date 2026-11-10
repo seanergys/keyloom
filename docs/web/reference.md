@@ -27,6 +27,10 @@ strings, lists and mappings only. When changing a loaded file, Keyloom
 replaces only the values it changes, written double-quoted, and keeps every
 comment and the formatting of everything else.
 
+A JSON file is written afresh, indented by two spaces per level, so it may
+nest at most 32 levels deep. Data in any format is read at most 128 levels
+deep.
+
 The `__keyloom__` representation has the same semantics in every format.
 
 ## Secret marker

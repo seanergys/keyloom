@@ -255,6 +255,29 @@ def test_retargeted_output_symlink_cannot_redirect_plaintext(
     assert 'value = "abc"' in target.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("name", [".", "..", "sub/.."])
+def test_output_path_without_a_file_name_is_refused(
+    tmp_path: _pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    """An output of "." or ".." is refused, not written inside its parent."""
+    source = _encrypted_toml(tmp_path=tmp_path)
+    work = tmp_path / "work"
+    (work / "sub").mkdir(parents=True)
+    monkeypatch.chdir(work)
+    before = sorted(path.name for path in tmp_path.rglob("*"))
+
+    with pytest.raises(keyloom.UnsafeOutput, match="not a file name"):
+        keyloom.decrypt_file(
+            input_path=source,
+            output_path=_pathlib.Path(name),
+            password="password",
+        )
+
+    assert sorted(path.name for path in tmp_path.rglob("*")) == before
+
+
 @pytest.mark.skipif(_os.name != "posix", reason="POSIX symlink semantics")
 def test_output_swapped_for_a_symlink_after_the_check_is_refused(
     tmp_path: _pathlib.Path, monkeypatch: pytest.MonkeyPatch

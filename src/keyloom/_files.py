@@ -62,6 +62,11 @@ def _destination(
             )
         # Follow the link once, now, because the caller asked for it.
         path = _pathlib.Path(_os.path.realpath(path))
+    # The final component names the file inside the pinned parent, so it
+    # must be a name: "." and "" have none, and ".." names another
+    # directory, whose own name would be written inside the parent.
+    if path.name in ("", ".", ".."):
+        raise _keyloom.UnsafeOutput(f"output path is not a file name: {path}")
     # Only the parent is resolved. The final component is never resolved,
     # so a link that appears there after the check above is not followed:
     # _target_stat sees it through the directory fd and refuses, and
